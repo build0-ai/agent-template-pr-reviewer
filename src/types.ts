@@ -6,6 +6,7 @@ export interface McpPluginConfig {
 
 export interface McpPlugin<TConfig extends McpPluginConfig = McpPluginConfig> {
   name: string;
+  config?: TConfig;
   init(config: TConfig): Promise<void>;
   registerTools(): Tool[];
   handleToolCall(

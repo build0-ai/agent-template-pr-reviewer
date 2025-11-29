@@ -45,8 +45,6 @@ npm install
 ### 2. Configuration
 Create a `.env` file with the following secrets (required depending on your workflow):
 ```bash
-# Target Repository to work on
-TARGET_REPO_URL="https://github.com/username/target-repo.git"
 
 # Authentication
 GITHUB_TOKEN="ghp_..."
@@ -67,7 +65,6 @@ The `workflow.json` file follows this structure:
 ```json
 {
   "name": "Agent Name",
-  "target_repo": { "url_env": "TARGET_REPO_URL" },
   "steps": [
     {
       "id": "unique_id",

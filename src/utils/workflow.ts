@@ -3,7 +3,7 @@ import path from 'path';
 
 export interface WorkflowStep {
   id: string;
-  type: 'system' | 'claude_code' | 'tool';
+  type: 'system' | 'ai_agent' | 'tool';
   action?: string;
   prompt?: string;
   tool?: string;
@@ -25,4 +25,6 @@ export async function loadWorkflow(filePath: string): Promise<Workflow> {
   const content = await fs.readFile(filePath, 'utf-8');
   return JSON.parse(content);
 }
+
+
 
