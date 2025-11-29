@@ -8,7 +8,6 @@ import { cloneRepo } from "./utils/git.js";
 import { runAgent } from "./utils/agent.js";
 import { sentryPlugin } from "./tools/sentry.js";
 import { slackPlugin } from "./tools/slack.js";
-import { diagnosticsPlugin } from "./tools/diagnostics.js";
 import { githubPlugin } from "./tools/github.js";
 import { fetchAndDecryptCredentials } from "./utils/credentials.js";
 
@@ -18,7 +17,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const plugins = [sentryPlugin, slackPlugin, diagnosticsPlugin, githubPlugin];
+const plugins = [sentryPlugin, slackPlugin, githubPlugin];
 
 function interpolate(text: string, context: any): string {
   if (typeof text !== "string") return text;

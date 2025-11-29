@@ -6,7 +6,6 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { sentryPlugin } from "./tools/sentry.js";
 import { slackPlugin } from "./tools/slack.js";
-import { diagnosticsPlugin } from "./tools/diagnostics.js";
 import { githubPlugin } from "./tools/github.js";
 import { fetchAndDecryptCredentials } from "./utils/credentials.js";
 
@@ -23,7 +22,7 @@ async function runServer() {
     }
   );
 
-  const plugins = [sentryPlugin, slackPlugin, diagnosticsPlugin, githubPlugin];
+  const plugins = [sentryPlugin, slackPlugin, githubPlugin];
 
   // Fetch credentials
   // Note: mcp-server runs as a subprocess spawned by src/utils/agent.ts
