@@ -76,7 +76,9 @@ export class Runner {
       }
     }
 
-    console.log(`📦 Available tools: ${Array.from(availableTools.keys()).join(", ")}`);
+    console.log(
+      `📦 Available tools: ${Array.from(availableTools.keys()).join(", ")}`
+    );
 
     // Check that all tools referenced in workflow steps are available
     const missingTools: string[] = [];
@@ -90,9 +92,11 @@ export class Runner {
 
     if (missingTools.length > 0) {
       throw new Error(
-        `Workflow references tools that are not available: ${missingTools.join(", ")}\n` +
-        `Available tools: ${Array.from(availableTools.keys()).join(", ")}\n` +
-        `Make sure the required plugins are registered in index.ts`
+        `Workflow references tools that are not available: ${missingTools.join(
+          ", "
+        )}\n` +
+          `Available tools: ${Array.from(availableTools.keys()).join(", ")}\n` +
+          `Make sure the required plugins are registered in index.ts`
       );
     }
 
@@ -187,10 +191,7 @@ export class Runner {
             console.log(
               `[AI Agent] Output: ${result.output.substring(0, 100)}...`
             );
-            context[step.id] = {
-              output: result.output,
-              has_issues: result.has_issues,
-            };
+            context[step.id] = { output: result.output };
             break;
 
           case "tool":
