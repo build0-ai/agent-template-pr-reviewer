@@ -14,6 +14,13 @@ export async function runAgent(params: {
   mcpServers: Record<string, McpSdkServerConfigWithInstance>;
   shouldContinuePreviousSession?: boolean;
 }): Promise<AgentResult> {
+  // Capture stderr to see actual errors from Claude Code process
+  const stderrMessages: string[] = [];
+  const stderrCallback = (message: string) => {
+    stderrMessages.push(message);
+    console.error(`[Claude Code stderr]: ${message}`);
+  };
+
   const stream = query({
     prompt: params.prompt,
     options: {
@@ -23,6 +30,7 @@ export async function runAgent(params: {
       mcpServers: params.mcpServers,
       // Enable all tools by default
       permissionMode: "bypassPermissions",
+      stderr: stderrCallback,
     },
   });
 
@@ -30,13 +38,18 @@ export async function runAgent(params: {
 
   try {
     for await (const message of stream) {
-      console.log(`[Claude Agent]: ${JSON.stringify(message)}`);
+      if (message.type !== "user") {
+        console.log(`[Claude Agent]: ${JSON.stringify(message)}`);
+      }
       if (message.type === "result") {
         finalResult = message;
       }
     }
   } catch (error) {
     console.error("[Claude Agent] Error:", error);
+    if (stderrMessages.length > 0) {
+      console.error("[Claude Agent] stderr output:", stderrMessages.join("\n"));
+    }
     throw error;
   }
 

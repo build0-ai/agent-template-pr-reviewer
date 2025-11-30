@@ -1,14 +1,10 @@
 import path from "path";
 import fs from "fs/promises";
-import { fileURLToPath } from "url";
+import os from "os";
 import { loadWorkflow } from "../utils/workflow.js";
 import { runAgent } from "../utils/agent.js";
 import { McpPlugin } from "./types.js";
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
-
-// ESM dirname workaround
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 function interpolate(text: string, context: any): string {
   if (typeof text !== "string") return text;
@@ -165,10 +161,11 @@ export class Runner {
               agentArgs.working_dir || "."
             );
 
-            // Write full prompt to a temp file
+            // Write full prompt to a temp file OUTSIDE the working directory
+            // to avoid Claude Code scanning it automatically
             const tempPromptFile = path.join(
-              workingDir,
-              `prompt_${step.id}.txt`
+              os.tmpdir(),
+              `prompt_${step.id}_${Date.now()}.txt`
             );
             await fs.writeFile(tempPromptFile, fullPrompt, "utf-8");
             console.log(`[AI Agent] Full prompt written to ${tempPromptFile}`);
@@ -177,9 +174,7 @@ export class Runner {
             const MAX_CHARS = 2000 * 4;
             let truncatedPrompt = fullPrompt.substring(0, MAX_CHARS);
             if (fullPrompt.length > MAX_CHARS) {
-              truncatedPrompt += `\n\n[Note: The full prompt was truncated. I have saved the complete details to the file '${path.basename(
-                tempPromptFile
-              )}' in the current directory. Please read it to get the full context.]`;
+              truncatedPrompt += `\n\n[Note: The full prompt was truncated. I have saved the complete details to the file '${tempPromptFile}' (outside the workspace). You can read it if needed, but it is large.]`;
             }
 
             const result = await runAgent({
