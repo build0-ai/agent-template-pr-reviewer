@@ -1,4 +1,8 @@
-import { query, SDKResultMessage } from "@anthropic-ai/claude-agent-sdk";
+import {
+  McpSdkServerConfigWithInstance,
+  query,
+  SDKResultMessage,
+} from "@anthropic-ai/claude-agent-sdk";
 
 export interface AgentResult {
   output: string;
@@ -7,8 +11,7 @@ export interface AgentResult {
 export async function runAgent(params: {
   prompt: string;
   workingDirectory: string;
-  mcpServerScript: string;
-  env?: Record<string, string>;
+  mcpServers: Record<string, McpSdkServerConfigWithInstance>;
   shouldContinuePreviousSession?: boolean;
 }): Promise<AgentResult> {
   const stream = query({
@@ -17,16 +20,7 @@ export async function runAgent(params: {
       continue: params.shouldContinuePreviousSession ?? false,
       cwd: params.workingDirectory,
       // We can use the default executable (node)
-      mcpServers: {
-        "internal-tools": {
-          command: "npx", // Use npx to run tsx
-          args: ["-y", "tsx", params.mcpServerScript],
-          env: { ...params.env },
-        },
-      },
-      env: {
-        ...params.env,
-      },
+      mcpServers: params.mcpServers,
       // Enable all tools by default
       permissionMode: "bypassPermissions",
     },

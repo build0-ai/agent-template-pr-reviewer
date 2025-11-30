@@ -1,4 +1,4 @@
-import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
 
 /**
  * Base configuration provided to all plugins.
@@ -12,7 +12,9 @@ export interface BasePluginConfig {
  * Generic plugin interface.
  * Each plugin should define its own TConfig interface with required keys.
  */
-export interface McpPlugin<TConfig extends BasePluginConfig = BasePluginConfig> {
+export interface McpPlugin<
+  TConfig extends BasePluginConfig = BasePluginConfig
+> {
   name: string;
   config?: TConfig;
   init(config: TConfig): Promise<void>;
@@ -20,8 +22,5 @@ export interface McpPlugin<TConfig extends BasePluginConfig = BasePluginConfig> 
   handleToolCall(
     name: string,
     args: Record<string, unknown>
-  ): Promise<{
-    content: { type: string; text: string }[];
-    isError?: boolean;
-  }>;
+  ): Promise<CallToolResult>;
 }

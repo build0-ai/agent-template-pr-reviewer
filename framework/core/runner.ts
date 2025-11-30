@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import { loadWorkflow } from "../utils/workflow.js";
 import { runAgent } from "../utils/agent.js";
 import { McpPlugin } from "./types.js";
+import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 
 // ESM dirname workaround
 const __filename = fileURLToPath(import.meta.url);
@@ -33,7 +34,6 @@ function interpolate(text: string, context: any): string {
 export class Runner {
   private plugins: McpPlugin[] = [];
   private pluginRegistry: Map<string, McpPlugin> = new Map();
-  private credentials: Record<string, string> = {};
 
   /**
    * Register a plugin with its configuration.
@@ -47,13 +47,6 @@ export class Runner {
     this.plugins.push(plugin);
     this.pluginRegistry.set(plugin.name, plugin);
     console.log(`✅ Registered plugin: ${plugin.name}`);
-  }
-
-  /**
-   * Set credentials to pass to the MCP server subprocess.
-   */
-  setCredentials(credentials: Record<string, string>): void {
-    this.credentials = credentials;
   }
 
   /**
@@ -103,6 +96,31 @@ export class Runner {
     console.log("✅ All workflow tools are available");
   }
 
+  private createMcpServer() {
+    const tools: any = [];
+    for (const plugin of this.plugins) {
+      const pluginTools = plugin.registerTools();
+      for (const pluginTool of pluginTools) {
+        tools.push(
+          tool(
+            pluginTool.name,
+            pluginTool.description || "",
+            pluginTool.inputSchema as any,
+            async (args: any, extra: unknown) => {
+              return await plugin.handleToolCall(pluginTool.name, args);
+            }
+          )
+        );
+      }
+    }
+    const customServer = createSdkMcpServer({
+      name: "agent-tools",
+      version: "1.0.0",
+      tools,
+    });
+    return customServer;
+  }
+
   /**
    * Run a workflow from a file.
    */
@@ -112,9 +130,6 @@ export class Runner {
 
     // Validate tools before running
     this.validateTools(workflow);
-
-    // Build list of plugin names for MCP server
-    const pluginNames = this.plugins.map((p) => p.name);
 
     // Run workflow steps
     const context: Record<string, any> = {};
@@ -167,17 +182,12 @@ export class Runner {
               )}' in the current directory. Please read it to get the full context.]`;
             }
 
-            // Pass credentials and plugin list to MCP server
-            const agentConfig = {
-              ...this.credentials,
-              PLUGINS: JSON.stringify(pluginNames),
-            };
-
             const result = await runAgent({
               prompt: truncatedPrompt,
               workingDirectory: workingDir,
-              mcpServerScript: path.join(__dirname, "mcp-server.ts"),
-              env: agentConfig,
+              mcpServers: {
+                "agent-tools": this.createMcpServer(),
+              },
               shouldContinuePreviousSession: !isFirstAiAgentStep,
             });
             isFirstAiAgentStep = false;

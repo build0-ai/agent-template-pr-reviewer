@@ -39,7 +39,8 @@ export const gitPlugin: McpPlugin<GitPluginConfig> = {
           properties: {
             repo_url: {
               type: "string",
-              description: "The repository URL to clone (can include credentials)",
+              description:
+                "The repository URL to clone (can include credentials)",
             },
             target_dir: {
               type: "string",

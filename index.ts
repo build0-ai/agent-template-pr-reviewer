@@ -20,9 +20,6 @@ async function main() {
   // Create runner instance
   const runner = new Runner();
 
-  // Pass credentials to runner (for MCP server subprocess)
-  runner.setCredentials(credentials);
-
   // ============================================================================
   // AGENT-SPECIFIC PLUGIN INITIALIZATION
   // TypeScript will enforce that all required config keys are provided!
