@@ -1,18 +1,35 @@
-import { McpPlugin } from "../types.js";
-import { z } from "zod";
+/**
+ * AGENT-SPECIFIC TOOL: Sentry Plugin
+ *
+ * This tool is specific to the Sentry fix agent use case.
+ * It provides Sentry issue tracking and fetching functionality.
+ *
+ * To reuse this in a different agent, modify the SENTRY_API_BASE or make it configurable.
+ */
+
+import { McpPlugin, BasePluginConfig } from "../../framework/core/types.js";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 
 const SENTRY_API_BASE = "https://sentry.io/api/0";
 
-export const sentryPlugin: McpPlugin = {
-  name: "sentry",
-  config: {},
+/**
+ * Sentry plugin config.
+ * Only SENTRY_AUTH_TOKEN is needed for authentication.
+ * SENTRY_ORG and SENTRY_PROJECT are passed as tool arguments.
+ */
+interface SentryPluginConfig extends BasePluginConfig {
+  SENTRY_AUTH_TOKEN: string;
+}
 
-  async init(config: { [key: string]: string | undefined }) {
-    this.config = config;
+export const sentryPlugin: McpPlugin<SentryPluginConfig> = {
+  name: "sentry",
+  config: {} as SentryPluginConfig,
+
+  async init(config: SentryPluginConfig): Promise<void> {
     if (!config.SENTRY_AUTH_TOKEN) {
-      console.warn("SENTRY_AUTH_TOKEN not set, Sentry plugin disabled");
+      throw new Error("Sentry plugin requires SENTRY_AUTH_TOKEN credential");
     }
+    this.config = config;
   },
 
   registerTools(): Tool[] {
@@ -23,8 +40,11 @@ export const sentryPlugin: McpPlugin = {
         inputSchema: {
           type: "object",
           properties: {
+            org: { type: "string", description: "Sentry organization slug" },
+            project: { type: "string", description: "Sentry project slug" },
             limit: { type: "number", description: "Number of issues to fetch" },
           },
+          required: ["org", "project"],
         },
       },
       {
@@ -43,14 +63,10 @@ export const sentryPlugin: McpPlugin = {
   },
 
   async handleToolCall(name, args) {
+    // Token is guaranteed to exist due to init() validation
     const token = this.config?.SENTRY_AUTH_TOKEN;
-    const org = this.config?.SENTRY_ORG;
-    const project = this.config?.SENTRY_PROJECT;
-
-    if (!token || !org || !project) {
-      throw new Error(
-        "Missing Sentry configuration (SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT)"
-      );
+    if (!token) {
+      throw new Error("Sentry plugin not initialized");
     }
 
     const headers = {
@@ -59,7 +75,12 @@ export const sentryPlugin: McpPlugin = {
     };
 
     if (name === "sentry_get_issues") {
-      const limit = args.limit || 1;
+      const { org, project, limit = 1 } = args as {
+        org: string;
+        project: string;
+        limit?: number;
+      };
+
       const url = `${SENTRY_API_BASE}/projects/${org}/${project}/issues/?query=is:unresolved&sort=freq&limit=${limit}`;
 
       console.log(`[Sentry] Fetching issues from: ${url}`);

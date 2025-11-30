@@ -1,17 +1,32 @@
-import { McpPlugin } from "../types.js";
+/**
+ * REUSABLE TOOL: Slack Plugin
+ *
+ * This tool can be shared across multiple agents for Slack integration.
+ * Provides messaging and approval-waiting functionality, easily extractable to a separate package.
+ */
+
+import { McpPlugin, BasePluginConfig } from "../../framework/core/types.js";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 
 const SLACK_API_BASE = "https://slack.com/api";
 
-export const slackPlugin: McpPlugin = {
-  name: "slack",
-  config: {},
+/**
+ * Slack plugin config.
+ * SLACK_BOT_TOKEN is required for Slack operations.
+ */
+interface SlackPluginConfig extends BasePluginConfig {
+  SLACK_BOT_TOKEN: string;
+}
 
-  async init(config: { [key: string]: string | undefined }) {
-    this.config = config;
+export const slackPlugin: McpPlugin<SlackPluginConfig> = {
+  name: "slack",
+  config: {} as SlackPluginConfig,
+
+  async init(config: SlackPluginConfig): Promise<void> {
     if (!config.SLACK_BOT_TOKEN) {
-      console.warn("SLACK_BOT_TOKEN not set, Slack plugin disabled");
+      throw new Error("Slack plugin requires SLACK_BOT_TOKEN credential");
     }
+    this.config = config;
   },
 
   registerTools(): Tool[] {
@@ -49,8 +64,8 @@ export const slackPlugin: McpPlugin = {
   },
 
   async handleToolCall(name, args) {
-    const token = this.config?.SLACK_BOT_TOKEN;
-    if (!token) throw new Error("SLACK_BOT_TOKEN not configured");
+    // Token is guaranteed to exist due to init() validation
+    const token = this.config!.SLACK_BOT_TOKEN!;
 
     const headers = {
       Authorization: `Bearer ${token}`,

@@ -1,17 +1,21 @@
 {
-  "name": "Sentry Fix Agent",
   "steps": [
     {
       "id": "clone_repo",
-      "type": "system",
-      "action": "clone",
-      "path": "./workspace"
+      "type": "tool",
+      "tool": "github_clone",
+      "args": {
+        "repo_url": "https://github.com/build0-ai/platform.git",
+        "target_dir": "./platform"
+      }
     },
     {
       "id": "fetch_issues",
       "type": "tool",
       "tool": "sentry_get_issues",
       "args": {
+        "org": "build0",
+        "project": "platfom",
         "limit": 1
       }
     },
@@ -26,8 +30,10 @@
     {
       "id": "investigate",
       "type": "ai_agent",
-      "prompt": "You are investigating a Sentry issue. Here are the details:\n\n{{ fetch_details.output }}\n\nAnalyze the codebase to find the root cause. Explain the issue and suggest a fix.",
-      "working_dir": "./workspace"
+      "args": {
+        "prompt": "You are investigating a Sentry issue. Here are the details:\n\n{{ fetch_details.output }}\n\nAnalyze the codebase to find the root cause. Explain the issue and suggest a fix.",
+        "working_dir": "./platform"
+      }
     },
     {
       "id": "post_slack",
@@ -51,8 +57,10 @@
     {
       "id": "fix_issue",
       "type": "ai_agent",
-      "prompt": "The fix has been approved. Please implement the fix for the issue investigated earlier. Here is the investigation result:\n\n{{ investigate.output }}\n\nCreate a new branch, commit the changes, and push.",
-      "working_dir": "./workspace"
+      "args": {
+        "prompt": "The fix has been approved. Please implement the fix for the issue investigated earlier. Here is the investigation result:\n\n{{ investigate.output }}\n\nCreate a new branch, commit the changes, and push.",
+        "working_dir": "./platform"
+      }
     }
   ]
 }
