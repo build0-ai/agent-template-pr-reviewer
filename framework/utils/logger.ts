@@ -17,7 +17,7 @@ import {
 
 // Logger utility for structured JSON logging
 class Logger {
-  private currentStepId: string | null = null;
+  private currentStepId?: string;
   private originalConsoleLog: typeof console.log;
   private originalConsoleWarn: typeof console.warn;
   private originalConsoleError: typeof console.error;
@@ -80,6 +80,7 @@ class Logger {
       timestamp: new Date().toISOString(),
       level,
       type,
+      stepId: this.currentStepId,
       ...data,
     } as T;
   }
@@ -103,7 +104,7 @@ class Logger {
         outputPreview,
       })
     );
-    this.currentStepId = null;
+    this.currentStepId = undefined;
   }
 
   stepError(stepId: string, error: string) {
@@ -113,7 +114,7 @@ class Logger {
         error,
       })
     );
-    this.currentStepId = null;
+    this.currentStepId = undefined;
   }
 
   stepSkip(stepId: string, reason: string) {
@@ -123,7 +124,7 @@ class Logger {
         reason,
       })
     );
-    this.currentStepId = null;
+    this.currentStepId = undefined;
   }
 
   aiAgentPrompt(
