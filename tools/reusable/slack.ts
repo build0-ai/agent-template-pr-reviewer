@@ -7,6 +7,7 @@
 
 import { McpPlugin, BasePluginConfig } from "../../framework/core/types.js";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { logger } from "../../framework/utils/logger.js";
 
 const SLACK_API_BASE = "https://slack.com/api";
 
@@ -100,12 +101,10 @@ export const slackPlugin: McpPlugin<SlackPluginConfig> = {
       const startTime = Date.now();
       const timeout = timeout_mins * 60 * 1000;
 
-      console.log(
-        `Waiting for approval on message ${message_ts} in channel ${channel}...`
+      logger.info(
+        `Waiting for approval in channel ${channel} for message ${message_ts}`
       );
-
       while (Date.now() - startTime < timeout) {
-        console.log(`[Slack] Polling reactions for message ${message_ts}...`);
         // Check reactions
         const response = await fetch(
           `${SLACK_API_BASE}/reactions.get?channel=${channel}&timestamp=${message_ts}`,
@@ -116,24 +115,25 @@ export const slackPlugin: McpPlugin<SlackPluginConfig> = {
         const result = await response.json();
 
         if (result.ok && result.message && result.message.reactions) {
-          console.log(
-            `[Slack] Reactions found: ${JSON.stringify(
-              result.message.reactions.map((r: any) => r.name)
-            )}`
-          );
           const approved = result.message.reactions.some(
             (r: any) => r.name === "white_check_mark" || r.name === "check"
           );
           if (approved) {
-            console.log("[Slack] Approval received!");
+            logger.info(
+              `Approved in channel ${channel} for message ${message_ts}`
+            );
             return {
               content: [{ type: "text", text: "Approved" }],
             };
           }
         } else if (!result.ok) {
-          console.warn(`[Slack] Failed to get reactions: ${result.error}`);
+          logger.error(
+            `Error waiting for approval in channel ${channel} for message ${message_ts}: ${result.error}`
+          );
         } else {
-          console.log("[Slack] No reactions found yet.");
+          logger.info(
+            `No reactions found in channel ${channel} for message ${message_ts}`
+          );
         }
 
         // Wait 5 seconds

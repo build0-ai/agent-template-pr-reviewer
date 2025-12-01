@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { logger } from "../utils/logger.js";
 
 const ENCRYPTION_KEY =
   "4a25577e8b685fa7dd8add4b54aded0af277f2ea02bdbd536020db4f9b555747";
@@ -8,7 +9,7 @@ const CREDENTIALS_URL =
 const AUTH_TOKEN = "temp-agent-token-12345";
 const CREDENTIALS_AUTH_KEY = "agent-credentials";
 
-interface RemoteCredential {
+export interface Credential {
   type: string;
   provider: string;
   apiKey?: string;
@@ -16,9 +17,7 @@ interface RemoteCredential {
   raw?: any;
 }
 
-function decryptCredentials(
-  encryptedData: string
-): Record<string, RemoteCredential> {
+function decryptCredentials(encryptedData: string): Record<string, Credential> {
   const parts = encryptedData.split(":");
   if (parts.length !== 3) {
     throw new Error("Invalid encrypted data format");
@@ -41,14 +40,15 @@ function decryptCredentials(
  * Provides a singleton instance that all parts of the framework can use.
  */
 class CredentialManager {
-  private credentials: Record<string, string> | null = null;
-  private fetchPromise: Promise<Record<string, string>> | null = null;
+  private credentials: Record<string, Credential> | null = null;
+  private fetchPromise: Promise<Record<string, Credential>> | null = null;
 
   /**
    * Fetch credentials from remote API and cache them.
    * Ensures credentials are only fetched once even if called multiple times.
+   * Returns raw credentials - transformation to env vars happens in index.ts
    */
-  async fetchCredentials(): Promise<Record<string, string>> {
+  async fetchCredentials(): Promise<Record<string, Credential>> {
     // If already fetched, return cached credentials
     if (this.credentials !== null) {
       return this.credentials;
@@ -62,16 +62,19 @@ class CredentialManager {
     // Start new fetch
     this.fetchPromise = this._performFetch();
     this.credentials = await this.fetchPromise;
+    logger.info(
+      `✅ Credentials fetched successfully:\n${Object.keys(this.credentials)
+        .map((key) => `- ${key}`)
+        .join("\n")}`
+    );
     return this.credentials;
   }
 
-  private async _performFetch(): Promise<Record<string, string>> {
+  private async _performFetch(): Promise<Record<string, Credential>> {
     console.log("[Credentials] Fetching remote credentials...");
     try {
       const response = await fetch(CREDENTIALS_URL, {
-        headers: {
-          "x-agent-auth-token": AUTH_TOKEN,
-        },
+        headers: { "x-agent-auth-token": AUTH_TOKEN },
       });
 
       if (!response.ok) {
@@ -86,27 +89,8 @@ class CredentialManager {
       const rawCredentials = decryptCredentials(data.encrypted);
       console.log("[Credentials] Successfully decrypted credentials");
 
-      // Transform to env var format
-      const envVars: Record<string, string> = {};
-
-      // Find provider credentials in the map
-      for (const [key, cred] of Object.entries(rawCredentials)) {
-        if (cred.provider === "sentry") {
-          if (cred.apiKey) {
-            envVars["SENTRY_AUTH_TOKEN"] = cred.apiKey;
-          }
-        } else if (cred.provider === "slack") {
-          if (cred.access_token) {
-            envVars["SLACK_BOT_TOKEN"] = cred.access_token;
-          }
-        } else if (cred.provider === "github") {
-          if (cred.access_token) {
-            envVars["GITHUB_TOKEN"] = cred.access_token;
-          }
-        }
-      }
-
-      return envVars;
+      // Return raw credentials - transformation happens in index.ts
+      return rawCredentials;
     } catch (error) {
       console.error(
         "[Credentials] Error fetching/decrypting credentials:",
@@ -117,24 +101,10 @@ class CredentialManager {
   }
 
   /**
-   * Get cached credentials. Returns empty object if not yet fetched.
+   * Get cached raw credentials. Returns empty object if not yet fetched.
    */
-  getCredentials(): Record<string, string> {
+  getCredentials(): Record<string, Credential> {
     return this.credentials || {};
-  }
-
-  /**
-   * Require a specific credential to be present.
-   * Throws if not found.
-   */
-  requireCredential(name: string): string {
-    const value = this.credentials?.[name];
-    if (!value) {
-      throw new Error(
-        `Required credential missing: ${name}. Did you forget to call fetchCredentials()?`
-      );
-    }
-    return value;
   }
 }
 

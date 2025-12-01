@@ -9,6 +9,7 @@
 
 import { McpPlugin, BasePluginConfig } from "../../framework/core/types.js";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { logger } from "../../framework/utils/logger.js";
 
 const SENTRY_API_BASE = "https://sentry.io/api/0";
 
@@ -75,7 +76,11 @@ export const sentryPlugin: McpPlugin<SentryPluginConfig> = {
     };
 
     if (name === "sentry_get_issues") {
-      const { org, project, limit = 1 } = args as {
+      const {
+        org,
+        project,
+        limit = 1,
+      } = args as {
         org: string;
         project: string;
         limit?: number;
@@ -83,8 +88,7 @@ export const sentryPlugin: McpPlugin<SentryPluginConfig> = {
 
       const url = `${SENTRY_API_BASE}/projects/${org}/${project}/issues/?query=is:unresolved&sort=freq&limit=${limit}`;
 
-      console.log(`[Sentry] Fetching issues from: ${url}`);
-
+      logger.info(`Fetching issues from from url ${url}`);
       const response = await fetch(url, { headers });
 
       if (!response.ok) {

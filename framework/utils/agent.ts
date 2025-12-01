@@ -3,6 +3,7 @@ import {
   query,
   SDKResultMessage,
 } from "@anthropic-ai/claude-agent-sdk";
+import { logger } from "./logger.js";
 
 export interface AgentResult {
   output: string;
@@ -18,7 +19,7 @@ export async function runAgent(params: {
   const stderrMessages: string[] = [];
   const stderrCallback = (message: string) => {
     stderrMessages.push(message);
-    console.error(`[Claude Code stderr]: ${message}`);
+    logger.claudeCodeStderr(message);
   };
 
   const stream = query({
@@ -38,18 +39,15 @@ export async function runAgent(params: {
 
   try {
     for await (const message of stream) {
-      if (message.type !== "user") {
-        console.log(`[Claude Agent]: ${JSON.stringify(message)}`);
-      }
+      logger.claudeCodeSdkMessage(message);
       if (message.type === "result") {
         finalResult = message;
       }
     }
   } catch (error) {
-    console.error("[Claude Agent] Error:", error);
-    if (stderrMessages.length > 0) {
-      console.error("[Claude Agent] stderr output:", stderrMessages.join("\n"));
-    }
+    logger.claudeCodeStderr(
+      error instanceof Error ? error.message : String(error)
+    );
     throw error;
   }
 

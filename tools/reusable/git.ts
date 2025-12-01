@@ -13,6 +13,7 @@ import { McpPlugin, BasePluginConfig } from "../../framework/core/types.js";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { simpleGit } from "simple-git";
 import fs from "fs/promises";
+import { logger } from "../../framework/utils/logger.js";
 
 /**
  * Git plugin config.
@@ -60,7 +61,7 @@ export const gitPlugin: McpPlugin<GitPluginConfig> = {
         target_dir: string;
       };
 
-      console.log(`[Git] Cloning ${repo_url} to ${target_dir}...`);
+      logger.info(`Cloning repository ${repo_url} into ${target_dir}`);
 
       // Ensure directory exists (or clean it)
       try {
@@ -70,8 +71,7 @@ export const gitPlugin: McpPlugin<GitPluginConfig> = {
 
       const git = simpleGit();
       await git.clone(repo_url, target_dir);
-      console.log(`[Git] Clone complete.`);
-
+      logger.info(`Successfully cloned ${repo_url} into ${target_dir}`);
       return {
         content: [
           {

@@ -11,6 +11,7 @@ import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { Octokit } from "@octokit/rest";
 import { simpleGit } from "simple-git";
 import fs from "fs/promises";
+import { logger } from "../../framework/utils/logger.js";
 
 /**
  * GitHub plugin config.
@@ -89,7 +90,7 @@ export const githubPlugin: McpPlugin<GitHubPluginConfig> = {
         target_dir: string;
       };
 
-      console.log(`[GitHub] Cloning ${repo_url} to ${target_dir}...`);
+      logger.info(`Cloning repository ${repo_url} into ${target_dir}`);
 
       // Inject GitHub token into URL
       // Format: https://<token>@github.com/owner/repo.git
@@ -108,7 +109,8 @@ export const githubPlugin: McpPlugin<GitHubPluginConfig> = {
 
       const git = simpleGit();
       await git.clone(authenticatedUrl, target_dir);
-      console.log(`[GitHub] Clone complete.`);
+
+      logger.info(`Successfully cloned ${repo_url} into ${target_dir}`);
 
       return {
         content: [
@@ -143,8 +145,6 @@ export const githubPlugin: McpPlugin<GitHubPluginConfig> = {
 
       const owner = match[1];
       const repo = match[2];
-
-      console.log(`[GitHub] Creating PR in ${owner}/${repo}: ${title}`);
 
       const response = await octokit.pulls.create({
         owner,

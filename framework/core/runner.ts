@@ -3,6 +3,7 @@ import fs from "fs/promises";
 import os from "os";
 import { loadWorkflow } from "../utils/workflow.js";
 import { runAgent } from "../utils/agent.js";
+import { logger } from "../utils/logger.js";
 import { McpPlugin } from "./types.js";
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 
@@ -42,7 +43,14 @@ export class Runner {
     await plugin.init(config);
     this.plugins.push(plugin);
     this.pluginRegistry.set(plugin.name, plugin);
-    console.log(`✅ Registered plugin: ${plugin.name}`);
+    logger.info(
+      `Plugin ${plugin.name} registered with ${
+        plugin.registerTools().length
+      } tools: ${plugin
+        .registerTools()
+        .map((t) => t.name)
+        .join(", ")}`
+    );
   }
 
   /**
@@ -65,10 +73,6 @@ export class Runner {
       }
     }
 
-    console.log(
-      `📦 Available tools: ${Array.from(availableTools.keys()).join(", ")}`
-    );
-
     // Check that all tools referenced in workflow steps are available
     const missingTools: string[] = [];
     for (const step of workflow.steps) {
@@ -89,11 +93,17 @@ export class Runner {
       );
     }
 
-    console.log("✅ All workflow tools are available");
+    logger.info(
+      `✅ All required workflow tools are available:\n${Array.from(
+        availableTools.keys()
+      )
+        .map((t) => `- ${t}`)
+        .join("\n")}`
+    );
   }
 
   private createMcpServer() {
-    const tools: any = [];
+    const tools: ReturnType<typeof tool>[] = [];
     for (const plugin of this.plugins) {
       const pluginTools = plugin.registerTools();
       for (const pluginTool of pluginTools) {
@@ -109,12 +119,17 @@ export class Runner {
         );
       }
     }
-    const customServer = createSdkMcpServer({
+    const server = createSdkMcpServer({
       name: "agent-tools",
       version: "1.0.0",
       tools,
     });
-    return customServer;
+    logger.info(
+      `✅ MCP server created with ${tools.length} tools:\n${tools
+        .map((t) => `- ${t.name}`)
+        .join("\n")}`
+    );
+    return server;
   }
 
   /**
@@ -122,23 +137,25 @@ export class Runner {
    */
   async runWorkflow(workflowPath: string): Promise<void> {
     const workflow = await loadWorkflow(workflowPath);
-    console.log(`📋 Loaded workflow`);
+    logger.info(`Workflow loaded (${workflow.steps.length} steps)`);
 
     // Validate tools before running
     this.validateTools(workflow);
+
+    const mcpServer = this.createMcpServer();
 
     // Run workflow steps
     const context: Record<string, any> = {};
     let isFirstAiAgentStep = true;
 
     for (const step of workflow.steps) {
-      console.log(`\n--- Step: ${step.id} (${step.type}) ---`);
+      logger.stepStart(step.id, step.type, step.tool);
 
       // Check 'if' condition
       if (step.if) {
         const condition = interpolate(step.if, context);
         if (!condition || condition === "false") {
-          console.log(`Skipping step ${step.id} (condition false)`);
+          logger.stepSkip(step.id, "condition false");
           continue;
         }
       }
@@ -167,11 +184,16 @@ export class Runner {
               os.tmpdir(),
               `prompt_${step.id}_${Date.now()}.txt`
             );
-            await fs.writeFile(tempPromptFile, fullPrompt, "utf-8");
-            console.log(`[AI Agent] Full prompt written to ${tempPromptFile}`);
-
             // Truncate prompt to ~2000 tokens (1 token ≈ 4 chars -> 8000 chars)
             const MAX_CHARS = 2000 * 4;
+
+            await fs.writeFile(tempPromptFile, fullPrompt, "utf-8");
+            logger.aiAgentPrompt(
+              step.id,
+              fullPrompt.length,
+              fullPrompt.length > MAX_CHARS,
+              tempPromptFile
+            );
             let truncatedPrompt = fullPrompt.substring(0, MAX_CHARS);
             if (fullPrompt.length > MAX_CHARS) {
               truncatedPrompt += `\n\n[Note: The full prompt was truncated. I have saved the complete details to the file '${tempPromptFile}' (outside the workspace). You can read it if needed, but it is large.]`;
@@ -181,20 +203,16 @@ export class Runner {
               prompt: truncatedPrompt,
               workingDirectory: workingDir,
               mcpServers: {
-                "agent-tools": this.createMcpServer(),
+                "agent-tools": mcpServer,
               },
               shouldContinuePreviousSession: !isFirstAiAgentStep,
             });
             isFirstAiAgentStep = false;
 
-            console.log(
-              `[AI Agent] Prompt (truncated): ${truncatedPrompt.substring(
-                0,
-                200
-              )}...`
-            );
-            console.log(
-              `[AI Agent] Output: ${result.output.substring(0, 100)}...`
+            logger.aiAgentResponse(
+              step.id,
+              result.output.length,
+              result.output.substring(0, 100)
             );
             context[step.id] = { output: result.output };
             break;
@@ -219,14 +237,19 @@ export class Runner {
               }
             }
 
-            console.log(`[Tool] Executing ${toolName}...`);
+            logger.toolCall(toolName, args);
             const toolResult = await plugin.handleToolCall(toolName, args);
 
             // Extract text content
             const outputText = toolResult.content
               .map((c: any) => c.text)
               .join("\n");
-            console.log(`[Tool] Result: ${outputText.substring(0, 100)}...`);
+            logger.toolResult(
+              toolName,
+              outputText.length,
+              outputText.substring(0, 100),
+              true
+            );
 
             // Try to parse JSON if possible for easier access
             let outputData = outputText;
@@ -237,21 +260,16 @@ export class Runner {
             }
 
             context[step.id] = { output: outputData };
-            console.log(
-              `[Tool] Output data: ${JSON.stringify(
-                outputData,
-                null,
-                2
-              ).substring(0, 500)}...`
-            );
+            // Tool result already logged above
             break;
         }
       } catch (error) {
-        console.error(`❌ Step ${step.id} failed:`, error);
+        logger.stepError(
+          step.id,
+          error instanceof Error ? error.message : String(error)
+        );
         process.exit(1);
       }
     }
-
-    console.log("\n✅ Workflow completed successfully.");
   }
 }
