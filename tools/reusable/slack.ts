@@ -5,8 +5,12 @@
  * Provides messaging and approval-waiting functionality, easily extractable to a separate package.
  */
 
-import { McpPlugin, BasePluginConfig } from "../../framework/core/types.js";
-import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import {
+  McpPlugin,
+  BasePluginConfig,
+  ToolDefinition,
+} from "../../framework/core/types.js";
+import { z } from "zod";
 import { logger } from "../../framework/utils/logger.js";
 
 const SLACK_API_BASE = "https://slack.com/api";
@@ -30,38 +34,28 @@ export const slackPlugin: McpPlugin<SlackPluginConfig> = {
     this.config = config;
   },
 
-  registerTools(): Tool[] {
-    const tools: Tool[] = [
+  registerTools(): ToolDefinition[] {
+    return [
       {
         name: "slack_post_message",
         description: "Post a message to a Slack channel",
-        inputSchema: {
-          type: "object",
-          properties: {
-            channel: { type: "string", description: "Channel ID" },
-            text: { type: "string", description: "Message text" },
-          },
-          required: ["channel", "text"],
-        },
+        zodSchema: z.object({
+          channel: z.string().describe("Channel ID"),
+          text: z.string().describe("Message text"),
+        }),
       },
       {
         name: "slack_wait_approval",
         description: "Wait for approval (✅ reaction) on a message",
-        inputSchema: {
-          type: "object",
-          properties: {
-            channel: { type: "string", description: "Channel ID" },
-            message_ts: {
-              type: "string",
-              description: "Timestamp of the message to monitor",
-            },
-            timeout_mins: { type: "number", description: "Timeout in minutes" },
-          },
-          required: ["channel", "message_ts"],
-        },
+        zodSchema: z.object({
+          channel: z.string().describe("Channel ID"),
+          message_ts: z
+            .string()
+            .describe("Timestamp of the message to monitor"),
+          timeout_mins: z.number().optional().describe("Timeout in minutes"),
+        }),
       },
     ];
-    return tools;
   },
 
   async handleToolCall(name, args) {

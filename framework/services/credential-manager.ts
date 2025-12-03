@@ -1,12 +1,10 @@
 import crypto from "crypto";
 import { logger } from "../utils/logger.js";
 
-const ENCRYPTION_KEY =
-  "4a25577e8b685fa7dd8add4b54aded0af277f2ea02bdbd536020db4f9b555747";
+const ENCRYPTION_KEY = process.env.BUILD0_ENCRYPTION_KEY!;
 const ALGORITHM = "aes-256-gcm";
-const CREDENTIALS_URL =
-  "https://phisdev.staging.build0.ai/api/service/agents/692a35e2197969faa6c7a03b/credentials";
-const AUTH_TOKEN = "temp-agent-token-12345";
+const CREDENTIALS_URL = process.env.BUILD0_AGENT_CREDENTIALS_URL!;
+const AUTH_TOKEN = process.env.BUILD0_AGENT_AUTH_TOKEN!;
 const CREDENTIALS_AUTH_KEY = "agent-credentials";
 
 export interface Credential {

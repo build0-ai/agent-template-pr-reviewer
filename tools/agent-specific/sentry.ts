@@ -7,9 +7,13 @@
  * To reuse this in a different agent, modify the SENTRY_API_BASE or make it configurable.
  */
 
-import { McpPlugin, BasePluginConfig } from "../../framework/core/types.js";
-import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import {
+  McpPlugin,
+  BasePluginConfig,
+  ToolDefinition,
+} from "../../framework/core/types.js";
 import { logger } from "../../framework/utils/logger.js";
+import { z } from "zod";
 
 const SENTRY_API_BASE = "https://sentry.io/api/0";
 
@@ -33,34 +37,25 @@ export const sentryPlugin: McpPlugin<SentryPluginConfig> = {
     this.config = config;
   },
 
-  registerTools(): Tool[] {
-    const tools: Tool[] = [
+  registerTools(): ToolDefinition[] {
+    return [
       {
         name: "sentry_get_issues",
         description: "Get unresolved issues from Sentry",
-        inputSchema: {
-          type: "object",
-          properties: {
-            org: { type: "string", description: "Sentry organization slug" },
-            project: { type: "string", description: "Sentry project slug" },
-            limit: { type: "number", description: "Number of issues to fetch" },
-          },
-          required: ["org", "project"],
-        },
+        zodSchema: z.object({
+          org: z.string().describe("Sentry organization slug"),
+          project: z.string().describe("Sentry project slug"),
+          limit: z.number().optional().describe("Number of issues to fetch"),
+        }),
       },
       {
         name: "sentry_get_issue_details",
         description: "Get comprehensive details for a specific issue",
-        inputSchema: {
-          type: "object",
-          properties: {
-            issue_id: { type: "string", description: "The issue ID" },
-          },
-          required: ["issue_id"],
-        },
+        zodSchema: z.object({
+          issue_id: z.string().describe("The issue ID"),
+        }),
       },
     ];
-    return tools;
   },
 
   async handleToolCall(name, args) {

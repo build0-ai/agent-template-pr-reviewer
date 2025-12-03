@@ -6,12 +6,16 @@
  * Can easily be extracted to a separate package.
  */
 
-import { McpPlugin, BasePluginConfig } from "../../framework/core/types.js";
-import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import {
+  McpPlugin,
+  BasePluginConfig,
+  ToolDefinition,
+} from "../../framework/core/types.js";
 import { Octokit } from "@octokit/rest";
 import { simpleGit } from "simple-git";
 import fs from "fs/promises";
 import { logger } from "../../framework/utils/logger.js";
+import { z } from "zod";
 
 /**
  * GitHub plugin config.
@@ -20,6 +24,35 @@ import { logger } from "../../framework/utils/logger.js";
 interface GitHubPluginConfig extends BasePluginConfig {
   GITHUB_TOKEN: string;
 }
+
+const githubCloneSchema = z.object({
+  repo_url: z
+    .string()
+    .describe(
+      "REQUIRED: The full URL of the repository (e.g. https://github.com/owner/repo or https://github.com/owner/repo.git)"
+    ),
+  target_dir: z.string().describe("The target directory to clone into"),
+});
+
+const githubCreatePrSchema = z.object({
+  title: z.string().describe("PR Title (REQUIRED)"),
+  body: z.string().optional().describe("PR Description (optional)"),
+  head: z
+    .string()
+    .describe(
+      "REQUIRED: The name of the branch where your changes are implemented (e.g. 'feature-branch')"
+    ),
+  base: z
+    .string()
+    .describe(
+      "REQUIRED: The name of the branch you want the changes pulled into (e.g. 'main' or 'master')"
+    ),
+  repo_url: z
+    .string()
+    .describe(
+      "REQUIRED: The full URL of the repository (e.g. https://github.com/owner/repo or https://github.com/owner/repo.git)"
+    ),
+});
 
 export const githubPlugin: McpPlugin<GitHubPluginConfig> = {
   name: "github",
@@ -32,63 +65,25 @@ export const githubPlugin: McpPlugin<GitHubPluginConfig> = {
     this.config = config;
   },
 
-  registerTools(): Tool[] {
+  registerTools(): ToolDefinition[] {
     return [
       {
         name: "github_clone",
         description: "Clone a GitHub repository with authentication",
-        inputSchema: {
-          type: "object",
-          properties: {
-            repo_url: {
-              type: "string",
-              description:
-                "The GitHub repository URL (e.g. https://github.com/owner/repo or https://github.com/owner/repo.git)",
-            },
-            target_dir: {
-              type: "string",
-              description: "The target directory to clone into",
-            },
-          },
-          required: ["repo_url", "target_dir"],
-        },
+        zodSchema: githubCloneSchema,
       },
       {
         name: "github_create_pr",
-        description: "Create a GitHub Pull Request",
-        inputSchema: {
-          type: "object",
-          properties: {
-            title: { type: "string", description: "PR Title" },
-            body: { type: "string", description: "PR Description" },
-            head: {
-              type: "string",
-              description:
-                "The name of the branch where your changes are implemented",
-            },
-            base: {
-              type: "string",
-              description:
-                "The name of the branch you want the changes pulled into",
-            },
-            repo_url: {
-              type: "string",
-              description:
-                "The full URL of the repository (e.g. https://github.com/owner/repo)",
-            },
-          },
-          required: ["title", "head", "base", "repo_url"],
-        },
+        description:
+          "Create a GitHub Pull Request. REQUIRED parameters: title (string), head (string - branch name), base (string - target branch), repo_url (string - full GitHub URL). Optional: body (string - PR description).",
+        zodSchema: githubCreatePrSchema,
       },
     ];
   },
 
   async handleToolCall(name, args) {
     if (name === "github_clone") {
-      const { repo_url, target_dir } = args as {
-        repo_url: string;
-        target_dir: string;
-      };
+      const { repo_url, target_dir } = githubCloneSchema.parse(args);
 
       logger.info(`Cloning repository ${repo_url} into ${target_dir}`);
 
@@ -130,18 +125,17 @@ export const githubPlugin: McpPlugin<GitHubPluginConfig> = {
       // Token is guaranteed to exist due to init() validation
       const token = this.config!.GITHUB_TOKEN!;
       const octokit = new Octokit({ auth: token });
-      const { title, body, head, base, repo_url } = args as {
-        title: string;
-        body?: string;
-        head: string;
-        base: string;
-        repo_url: string;
-      };
+      const { title, body, head, base, repo_url } =
+        githubCreatePrSchema.parse(args);
 
       // Parse owner and repo from URL
       // Supports: https://github.com/owner/repo.git or https://github.com/owner/repo
       const match = repo_url.match(/github\.com\/([^\/]+)\/([^\/\.]+)/);
-      if (!match) throw new Error(`Invalid GitHub URL: ${repo_url}`);
+      if (!match) {
+        throw new Error(
+          `Invalid GitHub URL: ${repo_url}. Expected format: https://github.com/owner/repo or https://github.com/owner/repo.git`
+        );
+      }
 
       const owner = match[1];
       const repo = match[2];

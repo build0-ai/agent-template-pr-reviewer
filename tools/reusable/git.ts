@@ -9,11 +9,15 @@
  * credentials/SSH keys configured in the environment.
  */
 
-import { McpPlugin, BasePluginConfig } from "../../framework/core/types.js";
-import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import {
+  McpPlugin,
+  BasePluginConfig,
+  ToolDefinition,
+} from "../../framework/core/types.js";
 import { simpleGit } from "simple-git";
 import fs from "fs/promises";
 import { logger } from "../../framework/utils/logger.js";
+import { z } from "zod";
 
 /**
  * Git plugin config.
@@ -30,26 +34,17 @@ export const gitPlugin: McpPlugin<GitPluginConfig> = {
     this.config = config;
   },
 
-  registerTools(): Tool[] {
+  registerTools(): ToolDefinition[] {
     return [
       {
         name: "git_clone",
         description: "Clone a Git repository",
-        inputSchema: {
-          type: "object",
-          properties: {
-            repo_url: {
-              type: "string",
-              description:
-                "The repository URL to clone (can include credentials)",
-            },
-            target_dir: {
-              type: "string",
-              description: "The target directory to clone into",
-            },
-          },
-          required: ["repo_url", "target_dir"],
-        },
+        zodSchema: z.object({
+          repo_url: z
+            .string()
+            .describe("The repository URL to clone (can include credentials)"),
+          target_dir: z.string().describe("The target directory to clone into"),
+        }),
       },
     ];
   },

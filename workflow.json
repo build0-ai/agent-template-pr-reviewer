@@ -58,10 +58,9 @@
       "id": "fix_issue",
       "type": "ai_agent",
       "args": {
-        "prompt": "The fix has been approved. Please implement the fix for the issue investigated earlier. Here is the investigation result:\n\n{{ investigate.output }}\n\nCreate a new branch, commit the changes, and push.",
+        "prompt": "The fix has been approved. Please implement the fix for the issue investigated earlier. Here is the investigation result:\n\n{{ investigate.output }}\n\nCreate a new branch, commit the changes, and push.  Then draft a PR using the github_create_pr tool.",
         "working_dir": "./platform"
       }
     }
   ]
 }
-

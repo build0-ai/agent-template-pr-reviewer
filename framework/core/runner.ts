@@ -110,9 +110,15 @@ export class Runner {
         tools.push(
           tool(
             pluginTool.name,
-            pluginTool.description || "",
-            pluginTool.inputSchema as any,
-            async (args: any, extra: unknown) => {
+            pluginTool.description,
+            pluginTool.zodSchema.shape,
+            async (args) => {
+              // The MCP SDK validates args against the Zod schema and passes them directly
+              logger.info(
+                `MCP tool ${pluginTool.name} called with args: ${JSON.stringify(
+                  args
+                )}`
+              );
               return await plugin.handleToolCall(pluginTool.name, args);
             }
           )

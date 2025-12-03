@@ -1,4 +1,5 @@
-import { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { z, ZodRawShape } from "zod";
 
 /**
  * Base configuration provided to all plugins.
@@ -6,6 +7,15 @@ import { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
  */
 export interface BasePluginConfig {
   [key: string]: string | undefined;
+}
+
+/**
+ * Tool definition with Zod schema for MCP SDK compatibility
+ */
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  zodSchema: z.ZodObject<ZodRawShape>;
 }
 
 /**
@@ -18,7 +28,7 @@ export interface McpPlugin<
   name: string;
   config?: TConfig;
   init(config: TConfig): Promise<void>;
-  registerTools(): Tool[];
+  registerTools(): ToolDefinition[];
   handleToolCall(
     name: string,
     args: Record<string, unknown>
