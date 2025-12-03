@@ -13,7 +13,7 @@ export interface Credential {
 }
 
 function decryptCredentials(encryptedData: string): Record<string, Credential> {
-  const encryptionKey = process.env.BUILD0_ENCRYPTION_KEY;
+  const encryptionKey = process.env.BUILD0_AGENT_ENCRYPTION_KEY;
   if (!encryptionKey) {
     throw new Error(
       "BUILD0_ENCRYPTION_KEY environment variable is not set. Cannot decrypt credentials."
