@@ -82,14 +82,6 @@ export interface ClaudeCodeStderrMessage extends BaseLogMessage {
   stderr: string;
 }
 
-// MCP server messages
-export interface McpServerCreatedMessage extends BaseLogMessage {
-  type: "mcp_server_created";
-  serverName: string;
-  serverVersion: string;
-  serverTools: string[];
-}
-
 export interface GenericLogMessage extends BaseLogMessage {
   type: "log";
 }
@@ -105,7 +97,6 @@ export type LogMessage =
   | ToolResultMessage
   | ClaudeCodeSdkMessage
   | ClaudeCodeStderrMessage
-  | McpServerCreatedMessage
   | GenericLogMessage;
 
 // Extract all possible log message types for strong typing

@@ -11,7 +11,6 @@ import {
   ToolCallMessage,
   ToolResultMessage,
   ClaudeCodeStderrMessage,
-  McpServerCreatedMessage,
   ClaudeCodeSdkMessage,
 } from "../core/log-types.js";
 
@@ -196,20 +195,6 @@ class Logger {
         "claude_code_stderr",
         "error",
         { stderr }
-      )
-    );
-  }
-
-  mcpServerCreated(
-    serverName: string,
-    serverVersion: string,
-    serverTools: string[]
-  ) {
-    this.log(
-      this.createMessage<McpServerCreatedMessage>(
-        "mcp_server_created",
-        "info",
-        { serverName, serverVersion, serverTools }
       )
     );
   }

@@ -263,6 +263,8 @@ export class Runner {
             // Tool result already logged above
             break;
         }
+
+        logger.stepComplete(step.id);
       } catch (error) {
         logger.stepError(
           step.id,
