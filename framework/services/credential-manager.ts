@@ -1,10 +1,7 @@
 import crypto from "crypto";
 import { logger } from "../utils/logger.js";
 
-const ENCRYPTION_KEY = process.env.BUILD0_ENCRYPTION_KEY!;
 const ALGORITHM = "aes-256-gcm";
-const CREDENTIALS_URL = process.env.BUILD0_AGENT_CREDENTIALS_URL!;
-const AUTH_TOKEN = process.env.BUILD0_AGENT_AUTH_TOKEN!;
 const CREDENTIALS_AUTH_KEY = "agent-credentials";
 
 export interface Credential {
@@ -16,12 +13,13 @@ export interface Credential {
 }
 
 function decryptCredentials(encryptedData: string): Record<string, Credential> {
+  const encryptionKey = process.env.BUILD0_ENCRYPTION_KEY!;
   const parts = encryptedData.split(":");
   if (parts.length !== 3) {
     throw new Error("Invalid encrypted data format");
   }
   const [ivHex, authTagHex, encrypted] = parts;
-  const key = Buffer.from(ENCRYPTION_KEY, "hex");
+  const key = Buffer.from(encryptionKey, "hex");
   const iv = Buffer.from(ivHex, "hex");
   const authTag = Buffer.from(authTagHex, "hex");
   const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
@@ -69,10 +67,15 @@ class CredentialManager {
   }
 
   private async _performFetch(): Promise<Record<string, Credential>> {
-    console.log("[Credentials] Fetching remote credentials...");
+    const credentialsUrl = process.env.BUILD0_AGENT_CREDENTIALS_URL!;
+    const authToken = process.env.BUILD0_AGENT_AUTH_TOKEN!;
+
+    console.log(
+      `[Credentials] Fetching remote credentials from ${credentialsUrl}...`
+    );
     try {
-      const response = await fetch(CREDENTIALS_URL, {
-        headers: { "x-agent-auth-token": AUTH_TOKEN },
+      const response = await fetch(credentialsUrl, {
+        headers: { "x-agent-auth-token": authToken },
       });
 
       if (!response.ok) {
