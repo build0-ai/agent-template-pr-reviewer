@@ -58,6 +58,7 @@ export interface AiAgentResponseMessage extends BaseLogMessage {
 // Tool execution messages
 export interface ToolCallMessage extends BaseLogMessage {
   type: "tool_call";
+  toolCallId: string;
   toolName: string;
   args: Record<string, any>;
 }
@@ -65,6 +66,7 @@ export interface ToolCallMessage extends BaseLogMessage {
 export interface ToolResultMessage extends BaseLogMessage {
   type: "tool_result";
   toolName: string;
+  toolCallId: string;
   resultLength: number;
   resultPreview: string;
   hasJsonResult?: boolean;

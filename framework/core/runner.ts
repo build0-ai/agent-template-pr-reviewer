@@ -237,7 +237,8 @@ export class Runner {
               }
             }
 
-            logger.toolCall(toolName, args);
+            const toolCallId = `${step.id}_${toolName}_${Date.now()}`;
+            logger.toolCall(toolName, toolCallId, args);
             const toolResult = await plugin.handleToolCall(toolName, args);
 
             // Extract text content
@@ -246,6 +247,7 @@ export class Runner {
               .join("\n");
             logger.toolResult(
               toolName,
+              toolCallId,
               outputText.length,
               outputText.substring(0, 100),
               true

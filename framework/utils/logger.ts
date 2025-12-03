@@ -156,10 +156,11 @@ class Logger {
     );
   }
 
-  toolCall(toolName: string, args: Record<string, any>) {
+  toolCall(toolName: string, toolCallId: string, args: Record<string, any>) {
     this.log(
       this.createMessage<ToolCallMessage>("tool_call", "info", {
         toolName,
+        toolCallId,
         args,
       })
     );
@@ -167,6 +168,7 @@ class Logger {
 
   toolResult(
     toolName: string,
+    toolCallId: string,
     resultLength: number,
     resultPreview: string,
     hasJsonResult?: boolean
@@ -174,6 +176,7 @@ class Logger {
     this.log(
       this.createMessage<ToolResultMessage>("tool_result", "info", {
         toolName,
+        toolCallId,
         resultLength,
         resultPreview,
         hasJsonResult,
