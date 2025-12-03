@@ -13,7 +13,12 @@ export interface Credential {
 }
 
 function decryptCredentials(encryptedData: string): Record<string, Credential> {
-  const encryptionKey = process.env.BUILD0_ENCRYPTION_KEY!;
+  const encryptionKey = process.env.BUILD0_ENCRYPTION_KEY;
+  if (!encryptionKey) {
+    throw new Error(
+      "BUILD0_ENCRYPTION_KEY environment variable is not set. Cannot decrypt credentials."
+    );
+  }
   const parts = encryptedData.split(":");
   if (parts.length !== 3) {
     throw new Error("Invalid encrypted data format");
@@ -67,8 +72,19 @@ class CredentialManager {
   }
 
   private async _performFetch(): Promise<Record<string, Credential>> {
-    const credentialsUrl = process.env.BUILD0_AGENT_CREDENTIALS_URL!;
-    const authToken = process.env.BUILD0_AGENT_AUTH_TOKEN!;
+    const credentialsUrl = process.env.BUILD0_AGENT_CREDENTIALS_URL;
+    const authToken = process.env.BUILD0_AGENT_AUTH_TOKEN;
+
+    if (!credentialsUrl) {
+      throw new Error(
+        "BUILD0_AGENT_CREDENTIALS_URL environment variable is not set."
+      );
+    }
+    if (!authToken) {
+      throw new Error(
+        "BUILD0_AGENT_AUTH_TOKEN environment variable is not set."
+      );
+    }
 
     console.log(
       `[Credentials] Fetching remote credentials from ${credentialsUrl}...`
