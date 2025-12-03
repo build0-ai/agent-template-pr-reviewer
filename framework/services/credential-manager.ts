@@ -111,7 +111,7 @@ class CredentialManager {
     } catch (error) {
       console.error(
         "[Credentials] Error fetching/decrypting credentials:",
-        error
+        error instanceof Error ? error.message : JSON.stringify(error)
       );
       throw error;
     }
