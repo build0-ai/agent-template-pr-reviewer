@@ -113,12 +113,6 @@ export class Runner {
             pluginTool.description,
             pluginTool.zodSchema.shape,
             async (args) => {
-              // The MCP SDK validates args against the Zod schema and passes them directly
-              logger.info(
-                `MCP tool ${pluginTool.name} called with args: ${JSON.stringify(
-                  args
-                )}`
-              );
               return await plugin.handleToolCall(pluginTool.name, args);
             }
           )
@@ -140,8 +134,13 @@ export class Runner {
 
   /**
    * Run a workflow from a file.
+   * @param workflowPath - Path to the workflow JSON file
+   * @param initialContext - Optional initial context (e.g., webhook payload)
    */
-  async runWorkflow(workflowPath: string): Promise<void> {
+  async runWorkflow(
+    workflowPath: string,
+    initialContext: Record<string, any> = {}
+  ): Promise<void> {
     const workflow = await loadWorkflow(workflowPath);
     logger.info(`Workflow loaded (${workflow.steps.length} steps)`);
 
@@ -150,8 +149,8 @@ export class Runner {
 
     const mcpServer = this.createMcpServer();
 
-    // Run workflow steps
-    const context: Record<string, any> = {};
+    // Run workflow steps with initial context
+    const context: Record<string, any> = { ...initialContext };
     let isFirstAiAgentStep = true;
 
     for (const step of workflow.steps) {

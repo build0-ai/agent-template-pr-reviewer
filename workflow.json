@@ -1,65 +1,32 @@
 {
   "steps": [
     {
-      "id": "clone_repo",
+      "id": "get_pr",
       "type": "tool",
-      "tool": "github_clone",
+      "tool": "github_get_pr",
       "args": {
-        "repo_url": "https://github.com/build0-ai/platform.git",
-        "target_dir": "./platform"
+        "owner": "{{ input.repository.owner.login }}",
+        "repo": "{{ input.repository.name }}",
+        "pr_number": "{{ input.pull_request.number }}"
       }
     },
     {
-      "id": "fetch_issues",
-      "type": "tool",
-      "tool": "sentry_get_issues",
-      "args": {
-        "org": "build0",
-        "project": "platfom",
-        "limit": 1
-      }
-    },
-    {
-      "id": "fetch_details",
-      "type": "tool",
-      "tool": "sentry_get_issue_details",
-      "args": {
-        "issue_id": "{{ fetch_issues.output.0.id }}"
-      }
-    },
-    {
-      "id": "investigate",
+      "id": "summarize",
       "type": "ai_agent",
       "args": {
-        "prompt": "You are investigating a Sentry issue. Here are the details:\n\n{{ fetch_details.output }}\n\nAnalyze the codebase to find the root cause. Explain the issue and suggest a fix.",
-        "working_dir": "./platform"
+        "prompt": "You are a code review assistant. Analyze the following pull request and generate a concise summary.\n\n## Pull Request Information\n\n**Title:** {{ get_pr.output.title }}\n\n**Description:**\n{{ get_pr.output.body }}\n\n**Stats:**\n- Files changed: {{ get_pr.output.changed_files }}\n- Additions: {{ get_pr.output.additions }}\n- Deletions: {{ get_pr.output.deletions }}\n\n**Files Modified:**\n{{ get_pr.output.files }}\n\n**Diff:**\n```\n{{ get_pr.output.diff }}\n```\n\n## Your Task\n\nGenerate a well-structured PR summary that includes:\n\n1. **Overview**: A 2-3 sentence high-level summary of what this PR does\n2. **Key Changes**: Bullet points of the main changes\n3. **Files Impact**: Brief description of which files were changed and why\n\nFormat your response in clean markdown that will render well as a GitHub comment. Keep it concise.",
+        "working_dir": "."
       }
     },
     {
-      "id": "post_slack",
+      "id": "comment",
       "type": "tool",
-      "tool": "slack_post_message",
+      "tool": "github_comment_pr",
       "args": {
-        "channel": "C09V1QS1QUF",
-        "text": "🚨 *New Sentry Issue Investigation*\n\n*Issue*: {{ fetch_details.output.issue.title }}\n*Analysis*: {{ investigate.output }}\n\nReact with ✅ to authorize a fix."
-      }
-    },
-    {
-      "id": "wait_approval",
-      "type": "tool",
-      "tool": "slack_wait_approval",
-      "args": {
-        "channel": "C09V1QS1QUF",
-        "message_ts": "{{ post_slack.output.ts }}",
-        "timeout_mins": 30
-      }
-    },
-    {
-      "id": "fix_issue",
-      "type": "ai_agent",
-      "args": {
-        "prompt": "The fix has been approved. Please implement the fix for the issue investigated earlier. Here is the investigation result:\n\n{{ investigate.output }}\n\nCreate a new branch, commit the changes, and push.  Then draft a PR using the github_create_pr tool.",
-        "working_dir": "./platform"
+        "owner": "{{ input.repository.owner.login }}",
+        "repo": "{{ input.repository.name }}",
+        "pr_number": "{{ input.pull_request.number }}",
+        "body": "## 🤖 AI-Generated PR Summary\n\n{{ summarize.output }}\n\n---\n*This summary was automatically generated.*"
       }
     }
   ]
