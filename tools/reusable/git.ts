@@ -13,10 +13,10 @@ import {
   McpPlugin,
   BasePluginConfig,
   ToolDefinition,
-} from "../../framework/core/types.js";
+  logger,
+} from "@build0.ai/agent-core";
 import { simpleGit } from "simple-git";
 import fs from "fs/promises";
-import { logger } from "../../framework/utils/logger.js";
 import { z } from "zod";
 
 /**

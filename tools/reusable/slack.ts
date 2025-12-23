@@ -9,9 +9,9 @@ import {
   McpPlugin,
   BasePluginConfig,
   ToolDefinition,
-} from "../../framework/core/types.js";
+  logger,
+} from "@build0.ai/agent-core";
 import { z } from "zod";
-import { logger } from "../../framework/utils/logger.js";
 
 const SLACK_API_BASE = "https://slack.com/api";
 

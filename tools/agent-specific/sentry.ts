@@ -11,8 +11,8 @@ import {
   McpPlugin,
   BasePluginConfig,
   ToolDefinition,
-} from "../../framework/core/types.js";
-import { logger } from "../../framework/utils/logger.js";
+  logger,
+} from "@build0.ai/agent-core";
 import { z } from "zod";
 
 const SENTRY_API_BASE = "https://sentry.io/api/0";

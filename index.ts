@@ -1,8 +1,6 @@
 import dotenv from "dotenv";
 import path from "path";
-import { Runner } from "./framework/core/runner.js";
-import { logger } from "./framework/utils/logger.js";
-import { credentialManager } from "./framework/services/credential-manager.js";
+import { Runner, logger, credentialManager } from "@build0.ai/agent-core";
 import { githubPlugin } from "./tools/reusable/github.js";
 
 dotenv.config();
