@@ -218,6 +218,37 @@ Supports:
 - Automatic JSON stringification for objects
 - Works in all `args` fields (tool and ai_agent)
 
+### Trigger Payload (External Input)
+
+Workflows can receive external data (e.g., webhook payloads) via the `BUILD0_TRIGGER_PAYLOAD` environment variable. The framework automatically parses this and makes it available as `{{ input }}` in workflow steps.
+
+**How it works:**
+1. External system (e.g., webhook handler) sets `BUILD0_TRIGGER_PAYLOAD` env var with JSON payload
+2. Framework automatically parses it on workflow start
+3. Payload is available as `{{ input.xxx }}` in any workflow step
+
+**Example - GitHub PR webhook:**
+```bash
+export BUILD0_TRIGGER_PAYLOAD='{"pull_request":{"number":123},"repository":{"name":"my-repo","owner":{"login":"my-org"}}}'
+pnpm dev
+```
+
+**Accessing in workflow.json:**
+```json
+{
+  "id": "get_pr",
+  "type": "tool",
+  "tool": "github_get_pr",
+  "args": {
+    "owner": "{{ input.repository.owner.login }}",
+    "repo": "{{ input.repository.name }}",
+    "pr_number": "{{ input.pull_request.number }}"
+  }
+}
+```
+
+This is handled automatically by the framework - no code needed in `index.ts`.
+
 ## Creating a New Agent
 
 ### 1. Setup Environment
@@ -308,6 +339,8 @@ pnpm dev
 **GitHub Plugin** - GitHub-specific operations:
 - `github_clone` - Clone private GitHub repo with token authentication
 - `github_create_pr` - Create pull request
+- `github_get_pr` - Get PR details (title, body, diff, files changed)
+- `github_comment_pr` - Post a comment on a PR
 
 **Slack Plugin** - Slack integration:
 - `slack_post_message` - Post message to channel

@@ -135,7 +135,7 @@ export class Runner {
   /**
    * Run a workflow from a file.
    * @param workflowPath - Path to the workflow JSON file
-   * @param initialContext - Optional initial context (e.g., webhook payload)
+   * @param initialContext - Optional additional context to merge
    */
   async runWorkflow(
     workflowPath: string,
@@ -149,8 +149,19 @@ export class Runner {
 
     const mcpServer = this.createMcpServer();
 
-    // Run workflow steps with initial context
+    // Build initial context with trigger payload from environment
     const context: Record<string, any> = { ...initialContext };
+
+    // Automatically inject BUILD0_TRIGGER_PAYLOAD as 'input' if present
+    if (process.env.BUILD0_TRIGGER_PAYLOAD) {
+      try {
+        const triggerPayload = JSON.parse(process.env.BUILD0_TRIGGER_PAYLOAD);
+        context.input = triggerPayload;
+        logger.info(`Trigger payload loaded from BUILD0_TRIGGER_PAYLOAD`);
+      } catch (e) {
+        logger.error(`Failed to parse BUILD0_TRIGGER_PAYLOAD: ${e}`);
+      }
+    }
     let isFirstAiAgentStep = true;
 
     for (const step of workflow.steps) {

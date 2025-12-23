@@ -27,14 +27,9 @@ async function main() {
     GITHUB_TOKEN: credentials.GITHUB_TOKEN!,
   });
 
-  // Parse webhook payload from environment variable
-  const webhookPayload = process.env.WEBHOOK_PAYLOAD
-    ? JSON.parse(process.env.WEBHOOK_PAYLOAD)
-    : {};
-
-  // Run workflow with webhook data as initial context
+  // Run workflow (trigger payload is automatically loaded from BUILD0_TRIGGER_PAYLOAD env var)
   const workflowPath = path.join(process.cwd(), "workflow.json");
-  await runner.runWorkflow(workflowPath, { input: webhookPayload });
+  await runner.runWorkflow(workflowPath);
 }
 
 main().catch((error) => {
