@@ -12,7 +12,7 @@ async function main() {
   // Extract GitHub token from credentials
   const credentials: Record<string, string> = {};
   for (const [key, cred] of Object.entries(rawCredentials)) {
-    if (key.startsWith("github-vsw4y")) {
+    if (key.startsWith("github-")) {
       credentials["GITHUB_TOKEN"] = cred.access_token!;
     }
   }
@@ -20,12 +20,12 @@ async function main() {
   // Create runner instance
   const runner = new Runner();
 
-  // Register GitHub plugin (the only plugin needed for PR summary)
+  // Register GitHub plugin
   await runner.registerPlugin(githubPlugin, {
     GITHUB_TOKEN: credentials.GITHUB_TOKEN!,
   });
 
-  // Run workflow (trigger payload is automatically loaded from BUILD0_TRIGGER_PAYLOAD env var)
+  // Run workflow
   const workflowPath = path.join(process.cwd(), "workflow.json");
   await runner.runWorkflow(workflowPath);
 }

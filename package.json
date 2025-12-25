@@ -1,5 +1,5 @@
 {
-  "name": "autonomous-agent-runner",
+  "name": "agent-template-pr-reviewer",
   "version": "0.1.0",
   "description": "Runner for autonomous coding agents",
   "main": "dist/index.js",
@@ -11,7 +11,7 @@
     "dev": "tsx index.ts"
   },
   "dependencies": {
-    "@build0.ai/agent-core": "^0.1.0",
+    "@build0.ai/agent-core": "^0.2.0",
     "@octokit/rest": "^20.0.0",
     "dotenv": "^16.3.1",
     "simple-git": "^3.22.0",
