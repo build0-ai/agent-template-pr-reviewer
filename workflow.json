@@ -1,36 +1,143 @@
 {
+  "name": "PR Reviewer",
+  "version": "1.0",
   "steps": [
     {
-      "id": "get_pr",
-      "name": "Fetch PR Details",
-      "type": "tool",
-      "tool": "github_get_pr",
-      "args": {
-        "owner": "{{ input.repository.owner.login }}",
-        "repo": "{{ input.repository.name }}",
-        "pr_number": "{{ input.pull_request.number }}"
+      "id": "skip-if-bot",
+      "type": "command",
+      "name": "Skip bot PRs",
+      "command": "if echo '{{ input.pull_request.user.login }}' | grep -qE '\\[bot\\]$|^dependabot|^renovate|^github-actions'; then echo 'Skipping bot PR'; exit 1; fi && echo 'Not a bot PR'",
+      "onError": "continue"
+    },
+    {
+      "id": "clone-repo",
+      "type": "command",
+      "name": "Clone repository",
+      "command": "git clone --depth=100 https://x-access-token:$GITHUB_TOKEN@github.com/{{ input.repository.full_name }}.git /workspace/repo && cd /workspace/repo && git fetch origin pull/{{ input.pull_request.number }}/head:pr-branch && git checkout pr-branch && echo 'Repository cloned and PR branch checked out'",
+      "env": {
+        "GITHUB_TOKEN": "{{ credentials.github.access_token }}"
+      },
+      "retries": 2,
+      "retryDelay": 3000
+    },
+    {
+      "id": "install-deps",
+      "type": "command",
+      "name": "Install reviewer dependencies",
+      "command": "cd /workspace/agent && npm install && echo 'Dependencies installed'",
+      "retries": 2,
+      "retryDelay": 5000
+    },
+    {
+      "id": "save-metadata",
+      "type": "command",
+      "name": "Save PR metadata",
+      "command": "echo '{{ input.pull_request.head.sha }}' > /tmp/last_commit.txt && date -u +%Y-%m-%dT%H:%M:%SZ > /tmp/last_check.txt && echo 'Metadata saved'"
+    },
+    {
+      "id": "initial-review",
+      "type": "command",
+      "name": "Generate AI code review",
+      "command": "cd /workspace/repo && npx tsx /workspace/agent/src/review.ts",
+      "env": {
+        "GITHUB_TOKEN": "{{ credentials.github.access_token }}",
+        "ANTHROPIC_API_KEY": "{{ credentials.anthropic.api_key }}",
+        "PR_NUMBER": "{{ input.pull_request.number }}",
+        "REPO": "{{ input.repository.full_name }}",
+        "COMMIT_SHA": "{{ input.pull_request.head.sha }}",
+        "PR_TITLE": "{{ input.pull_request.title }}",
+        "PR_BODY": "{{ input.pull_request.body }}"
+      },
+      "retries": 2,
+      "retryDelay": 10000
+    },
+    {
+      "id": "save-checkpoint",
+      "type": "command",
+      "name": "Save checkpoint after review",
+      "command": "date -u +%Y-%m-%dT%H:%M:%SZ > /tmp/last_check.txt && echo 'Checkpoint saved'"
+    },
+    {
+      "id": "poll-wait",
+      "type": "sleep",
+      "name": "Wait before checking for updates",
+      "duration": 300000
+    },
+    {
+      "id": "check-pr-status",
+      "type": "command",
+      "name": "Check if PR is still open",
+      "command": "PR_STATE=$(curl -sL -H \"Authorization: token $GITHUB_TOKEN\" \"https://api.github.com/repos/{{ input.repository.full_name }}/pulls/{{ input.pull_request.number }}\" | jq -r '.state') && echo \"$PR_STATE\" > /tmp/pr_state.txt && echo \"PR state: $PR_STATE\"",
+      "env": {
+        "GITHUB_TOKEN": "{{ credentials.github.access_token }}"
       }
     },
     {
-      "id": "review",
-      "name": "Review Code",
-      "type": "ai_agent",
-      "args": {
-        "prompt": "You are an expert code reviewer. Analyze the following pull request and provide a comprehensive review.\n\n## Pull Request Information\n\n**Title:** {{ get_pr.output.title }}\n\n**Description:**\n{{ get_pr.output.body }}\n\n**Stats:**\n- Files changed: {{ get_pr.output.changed_files }}\n- Additions: {{ get_pr.output.additions }}\n- Deletions: {{ get_pr.output.deletions }}\n\n**Files Modified:**\n{{ get_pr.output.files }}\n\n**Diff:**\n```\n{{ get_pr.output.diff }}\n```\n\n## Your Review Should Include:\n\n1. **Code Quality**: Assess readability, maintainability, and adherence to best practices\n2. **Potential Bugs**: Identify any logic errors, edge cases, or potential runtime issues\n3. **Security Issues**: Flag any security vulnerabilities (XSS, SQL injection, auth issues, etc.)\n4. **Performance**: Note any performance concerns or optimization opportunities\n5. **Suggestions**: Provide actionable improvement suggestions\n\nFormat your response as a structured code review with sections for each category. Use markdown formatting that renders well as a GitHub comment.",
-        "working_dir": "."
+      "id": "check-new-commits",
+      "type": "command",
+      "name": "Check for new commits",
+      "command": "LAST_SHA=$(cat /tmp/last_commit.txt) && CURRENT_SHA=$(curl -sL -H \"Authorization: token $GITHUB_TOKEN\" \"https://api.github.com/repos/{{ input.repository.full_name }}/pulls/{{ input.pull_request.number }}\" | jq -r '.head.sha') && if [ \"$LAST_SHA\" != \"$CURRENT_SHA\" ]; then echo \"$CURRENT_SHA\" > /tmp/last_commit.txt && echo 'true' > /tmp/has_new_commits.txt && cd /workspace/repo && git fetch origin pr-branch && git reset --hard FETCH_HEAD && echo 'New commits detected'; else echo 'false' > /tmp/has_new_commits.txt && echo 'No new commits'; fi",
+      "env": {
+        "GITHUB_TOKEN": "{{ credentials.github.access_token }}"
       }
     },
     {
-      "id": "comment",
-      "name": "Post Review Comment",
-      "type": "tool",
-      "tool": "github_comment_pr",
-      "args": {
-        "owner": "{{ input.repository.owner.login }}",
-        "repo": "{{ input.repository.name }}",
-        "pr_number": "{{ input.pull_request.number }}",
-        "body": "## 🤖 AI Code Review\n\n{{ review.output }}\n\n---\n*This review was automatically generated by the PR Reviewer agent.*"
+      "id": "check-new-comments",
+      "type": "command",
+      "name": "Check for new comments",
+      "command": "SINCE=$(cat /tmp/last_check.txt) && curl -sL -H \"Authorization: token $GITHUB_TOKEN\" \"https://api.github.com/repos/{{ input.repository.full_name }}/pulls/{{ input.pull_request.number }}/comments?since=$SINCE\" > /tmp/new_comments.json && COMMENT_COUNT=$(cat /tmp/new_comments.json | jq 'length') && echo \"Found $COMMENT_COUNT new comments\"",
+      "env": {
+        "GITHUB_TOKEN": "{{ credentials.github.access_token }}"
       }
+    },
+    {
+      "id": "respond-to-activity",
+      "type": "command",
+      "name": "Respond to new activity",
+      "command": "HAS_NEW_COMMITS=$(cat /tmp/has_new_commits.txt 2>/dev/null || echo 'false') && COMMENT_COUNT=$(cat /tmp/new_comments.json 2>/dev/null | jq 'length' || echo '0') && if [ \"$HAS_NEW_COMMITS\" = 'true' ] || [ \"$COMMENT_COUNT\" -gt 0 ]; then cd /workspace/repo && NEW_COMMENTS=$(cat /tmp/new_comments.json) npx tsx /workspace/agent/src/respond.ts; else echo 'No activity to respond to'; fi",
+      "env": {
+        "GITHUB_TOKEN": "{{ credentials.github.access_token }}",
+        "ANTHROPIC_API_KEY": "{{ credentials.anthropic.api_key }}",
+        "PR_NUMBER": "{{ input.pull_request.number }}",
+        "REPO": "{{ input.repository.full_name }}",
+        "HAS_NEW_COMMITS": "{{ steps.check-new-commits.output }}"
+      }
+    },
+    {
+      "id": "check-re-review",
+      "type": "command",
+      "name": "Check if re-review is needed",
+      "command": "if [ -f /tmp/should_re_review.txt ] && [ \"$(cat /tmp/should_re_review.txt)\" = 'true' ]; then rm /tmp/should_re_review.txt && echo 're-review'; else echo 'no-re-review'; fi"
+    },
+    {
+      "id": "do-re-review",
+      "type": "command",
+      "name": "Perform re-review if needed",
+      "command": "cd /workspace/repo && COMMIT_SHA=$(cat /tmp/last_commit.txt) && npx tsx /workspace/agent/src/review.ts",
+      "if": "{{ steps.check-re-review.output == 're-review' }}",
+      "env": {
+        "GITHUB_TOKEN": "{{ credentials.github.access_token }}",
+        "ANTHROPIC_API_KEY": "{{ credentials.anthropic.api_key }}",
+        "PR_NUMBER": "{{ input.pull_request.number }}",
+        "REPO": "{{ input.repository.full_name }}",
+        "COMMIT_SHA": "{{ steps.check-new-commits.output }}",
+        "PR_TITLE": "{{ input.pull_request.title }}",
+        "PR_BODY": "{{ input.pull_request.body }}"
+      }
+    },
+    {
+      "id": "update-checkpoint",
+      "type": "command",
+      "name": "Update checkpoint timestamp",
+      "command": "date -u +%Y-%m-%dT%H:%M:%SZ > /tmp/last_check.txt && echo 'Checkpoint updated'"
+    },
+    {
+      "id": "loop-back",
+      "type": "command",
+      "name": "Continue polling loop",
+      "command": "PR_STATE=$(cat /tmp/pr_state.txt 2>/dev/null || echo 'open') && if [ \"$PR_STATE\" = 'open' ]; then echo 'PR still open, continuing poll'; exit 1; else echo 'PR closed, ending workflow'; exit 0; fi",
+      "onError": "goto",
+      "onErrorGoto": "poll-wait"
     }
   ]
 }

@@ -1,33 +1,19 @@
 {
-  "name": "agent-template-pr-reviewer",
-  "version": "0.1.0",
-  "description": "Runner for autonomous coding agents",
-  "main": "dist/index.js",
+  "name": "pr-reviewer-agent",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "build": "tsc",
-    "typecheck": "tsc --noEmit",
-    "start": "node dist/index.js",
-    "dev": "tsx index.ts"
+    "review": "tsx src/review.ts",
+    "respond": "tsx src/respond.ts"
   },
   "dependencies": {
-    "@build0.ai/agent-core": "^0.2.0",
-    "@octokit/rest": "^20.0.0",
-    "dotenv": "^16.3.1",
-    "simple-git": "^3.22.0",
-    "zod": "^3.22.4"
+    "@anthropic-ai/claude-code": "^0.2.57",
+    "zod": "^3.24.1",
+    "zod-to-json-schema": "^3.24.1"
   },
   "devDependencies": {
-    "@types/node": "^20.11.0",
-    "tsx": "^4.7.0",
-    "typescript": "^5.3.3"
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
   }
 }
-
-
-
-
-
-
-
-

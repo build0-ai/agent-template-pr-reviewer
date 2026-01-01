@@ -1,3 +1,30 @@
-dist/
+# Dependencies
 node_modules/
+
+# Build output
+dist/
+
+# Environment
 .env
+.env.local
+.env.*.local
+
+# Temporary files
+/tmp/
+*.log
+*.swp
+*.swo
+
+# IDE
+.idea/
+.vscode/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Lock files (use npm install fresh)
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
