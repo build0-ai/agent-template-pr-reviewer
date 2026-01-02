@@ -42,7 +42,7 @@
       "env": {
         "IS_SANDBOX": "1",
         "GITHUB_TOKEN": "{{ credentials['github-app-oauth'].access_token }}",
-        "ANTHROPIC_API_KEY": "{{ credentials.anthropic.api_key }}",
+        "ANTHROPIC_API_KEY": "{{ credentials.anthropic.apiKey }}",
         "PR_NUMBER": "{{ input.pull_request.number }}",
         "REPO": "{{ input.repository.full_name }}",
         "COMMIT_SHA": "{{ input.pull_request.head.sha }}",
@@ -99,7 +99,7 @@
       "env": {
         "IS_SANDBOX": "1",
         "GITHUB_TOKEN": "{{ credentials['github-app-oauth'].access_token }}",
-        "ANTHROPIC_API_KEY": "{{ credentials.anthropic.api_key }}",
+        "ANTHROPIC_API_KEY": "{{ credentials.anthropic.apiKey }}",
         "PR_NUMBER": "{{ input.pull_request.number }}",
         "REPO": "{{ input.repository.full_name }}",
         "HAS_NEW_COMMITS": "{{ steps.check-new-commits.output }}"
@@ -120,7 +120,7 @@
       "env": {
         "IS_SANDBOX": "1",
         "GITHUB_TOKEN": "{{ credentials['github-app-oauth'].access_token }}",
-        "ANTHROPIC_API_KEY": "{{ credentials.anthropic.api_key }}",
+        "ANTHROPIC_API_KEY": "{{ credentials.anthropic.apiKey }}",
         "PR_NUMBER": "{{ input.pull_request.number }}",
         "REPO": "{{ input.repository.full_name }}",
         "COMMIT_SHA": "{{ steps.check-new-commits.output }}",
