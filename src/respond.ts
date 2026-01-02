@@ -1,4 +1,4 @@
-import { query } from "@anthropic-ai/claude-code";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { ResponseSchema, type Response } from "./schemas.js";
 import { postReplies, postComment, getPRDiff } from "./github.js";
@@ -36,7 +36,8 @@ async function main() {
 
   // Filter out our own bot comments to avoid self-replies
   const externalComments = newComments.filter(
-    (c) => !c.user.login.includes("[bot]") && !c.body.includes("🤖 AI Code Review")
+    (c) =>
+      !c.user.login.includes("[bot]") && !c.body.includes("🤖 AI Code Review")
   );
 
   if (externalComments.length === 0 && !HAS_NEW_COMMITS) {
@@ -62,16 +63,19 @@ ${c.body}`
   if (HAS_NEW_COMMITS) {
     try {
       const diff = await getPRDiff(REPO, PR_NUMBER);
-      diffContext = diff.length > 50000 ? diff.slice(0, 50000) + "\n... (truncated)" : diff;
+      diffContext =
+        diff.length > 50000 ? diff.slice(0, 50000) + "\n... (truncated)" : diff;
     } catch (error) {
       console.log("Could not fetch diff:", error);
     }
   }
 
   // Convert Zod schema to JSON Schema
-  const schema = zodToJsonSchema(ResponseSchema, { $refStrategy: "root" });
+  const schema = zodToJsonSchema(ResponseSchema, { $refStrategy: "none" });
 
   let response: Response | null = null;
+
+  console.log("Running Claude Agent SDK to formulate response...");
 
   // Run Claude Agent SDK query
   for await (const message of query({
@@ -115,9 +119,11 @@ ${diffContext}
 
 Be concise, helpful, and professional. Don't repeat yourself.`,
     options: {
+      allowDangerouslySkipPermissions: true,
+      permissionMode: "bypassPermissions",
       outputFormat: {
         type: "json_schema",
-        schema: schema,
+        schema: schema as Record<string, unknown>,
       },
     },
   })) {
@@ -125,22 +131,27 @@ Be concise, helpful, and professional. Don't repeat yourself.`,
       console.log("Agent is formulating response...");
     }
 
-    if (message.type === "result" && message.structured_output) {
-      const parsed = ResponseSchema.safeParse(message.structured_output);
-      if (parsed.success) {
-        response = parsed.data;
-        console.log(`Response generated:`);
-        console.log(`  Replies: ${response.replies.length}`);
-        console.log(`  General comment: ${response.general_comment ? "yes" : "no"}`);
-        console.log(`  Should re-review: ${response.should_re_review}`);
-      } else {
-        console.error("Failed to parse response:", parsed.error);
+    if (message.type === "result") {
+      if (message.subtype === "success" && message.structured_output) {
+        const parsed = ResponseSchema.safeParse(message.structured_output);
+        if (parsed.success) {
+          response = parsed.data;
+          console.log(`Response generated:`);
+          console.log(`  Replies: ${response.replies.length}`);
+          console.log(
+            `  General comment: ${response.general_comment ? "yes" : "no"}`
+          );
+          console.log(`  Should re-review: ${response.should_re_review}`);
+        } else {
+          console.error("Failed to parse response:", parsed.error.errors);
+        }
+      } else if (message.subtype === "error_max_structured_output_retries") {
+        console.error("Failed to generate valid structured output");
+        process.exit(1);
+      } else if (message.subtype === "error_during_execution") {
+        console.error("Error during execution:", message.errors);
+        process.exit(1);
       }
-    }
-
-    if (message.type === "result" && message.subtype === "error_max_structured_output_retries") {
-      console.error("Failed to generate valid structured output");
-      process.exit(1);
     }
   }
 
@@ -164,7 +175,11 @@ Be concise, helpful, and professional. Don't repeat yourself.`,
   if (response.general_comment) {
     console.log("Posting general comment...");
     try {
-      await postComment(REPO, PR_NUMBER, `🤖 **Update**\n\n${response.general_comment}`);
+      await postComment(
+        REPO,
+        PR_NUMBER,
+        `🤖 **Update**\n\n${response.general_comment}`
+      );
       console.log("Comment posted successfully");
     } catch (error) {
       console.error("Failed to post comment:", error);

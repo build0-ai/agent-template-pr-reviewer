@@ -7,7 +7,7 @@
     "respond": "tsx src/respond.ts"
   },
   "dependencies": {
-    "@anthropic-ai/claude-code": "^0.2.57",
+    "@anthropic-ai/claude-agent-sdk": "^0.1.76",
     "zod": "^3.24.1",
     "zod-to-json-schema": "^3.24.1"
   },

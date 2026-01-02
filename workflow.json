@@ -6,7 +6,7 @@
       "id": "skip-if-bot",
       "type": "command",
       "name": "Skip bot PRs",
-      "command": "if echo '{{ input.pull_request.user.login }}' | grep -qE '\\[bot\\]$|^dependabot|^renovate|^github-actions'; then echo 'Skipping bot PR'; exit 1; fi && echo 'Not a bot PR'",
+      "command": "if echo '{{ input.pull_request.user.login }}' | grep -qE '\\[bot\\]$|^dependabot|^renovate|^github-actions'; then echo 'Skipping bot PR'; exit 1; fi && echo 'Not a bot PR: {{ input.pull_request.user.login }}'",
       "onError": "continue"
     },
     {
@@ -15,7 +15,7 @@
       "name": "Clone repository",
       "command": "git clone --depth=100 https://x-access-token:$GITHUB_TOKEN@github.com/{{ input.repository.full_name }}.git /workspace/repo && cd /workspace/repo && git fetch origin pull/{{ input.pull_request.number }}/head:pr-branch && git checkout pr-branch && echo 'Repository cloned and PR branch checked out'",
       "env": {
-        "GITHUB_TOKEN": "{{ credentials.github.access_token }}"
+        "GITHUB_TOKEN": "{{ credentials['github-app-oauth'].access_token }}"
       },
       "retries": 2,
       "retryDelay": 3000
@@ -40,7 +40,7 @@
       "name": "Generate AI code review",
       "command": "cd /workspace/repo && npx tsx /workspace/agent/src/review.ts",
       "env": {
-        "GITHUB_TOKEN": "{{ credentials.github.access_token }}",
+        "GITHUB_TOKEN": "{{ credentials['github-app-oauth'].access_token }}",
         "ANTHROPIC_API_KEY": "{{ credentials.anthropic.api_key }}",
         "PR_NUMBER": "{{ input.pull_request.number }}",
         "REPO": "{{ input.repository.full_name }}",
@@ -69,7 +69,7 @@
       "name": "Check if PR is still open",
       "command": "PR_STATE=$(curl -sL -H \"Authorization: token $GITHUB_TOKEN\" \"https://api.github.com/repos/{{ input.repository.full_name }}/pulls/{{ input.pull_request.number }}\" | jq -r '.state') && echo \"$PR_STATE\" > /tmp/pr_state.txt && echo \"PR state: $PR_STATE\"",
       "env": {
-        "GITHUB_TOKEN": "{{ credentials.github.access_token }}"
+        "GITHUB_TOKEN": "{{ credentials['github-app-oauth'].access_token }}"
       }
     },
     {
@@ -78,7 +78,7 @@
       "name": "Check for new commits",
       "command": "LAST_SHA=$(cat /tmp/last_commit.txt) && CURRENT_SHA=$(curl -sL -H \"Authorization: token $GITHUB_TOKEN\" \"https://api.github.com/repos/{{ input.repository.full_name }}/pulls/{{ input.pull_request.number }}\" | jq -r '.head.sha') && if [ \"$LAST_SHA\" != \"$CURRENT_SHA\" ]; then echo \"$CURRENT_SHA\" > /tmp/last_commit.txt && echo 'true' > /tmp/has_new_commits.txt && cd /workspace/repo && git fetch origin pr-branch && git reset --hard FETCH_HEAD && echo 'New commits detected'; else echo 'false' > /tmp/has_new_commits.txt && echo 'No new commits'; fi",
       "env": {
-        "GITHUB_TOKEN": "{{ credentials.github.access_token }}"
+        "GITHUB_TOKEN": "{{ credentials['github-app-oauth'].access_token }}"
       }
     },
     {
@@ -87,7 +87,7 @@
       "name": "Check for new comments",
       "command": "SINCE=$(cat /tmp/last_check.txt) && curl -sL -H \"Authorization: token $GITHUB_TOKEN\" \"https://api.github.com/repos/{{ input.repository.full_name }}/pulls/{{ input.pull_request.number }}/comments?since=$SINCE\" > /tmp/new_comments.json && COMMENT_COUNT=$(cat /tmp/new_comments.json | jq 'length') && echo \"Found $COMMENT_COUNT new comments\"",
       "env": {
-        "GITHUB_TOKEN": "{{ credentials.github.access_token }}"
+        "GITHUB_TOKEN": "{{ credentials['github-app-oauth'].access_token }}"
       }
     },
     {
@@ -96,7 +96,7 @@
       "name": "Respond to new activity",
       "command": "HAS_NEW_COMMITS=$(cat /tmp/has_new_commits.txt 2>/dev/null || echo 'false') && COMMENT_COUNT=$(cat /tmp/new_comments.json 2>/dev/null | jq 'length' || echo '0') && if [ \"$HAS_NEW_COMMITS\" = 'true' ] || [ \"$COMMENT_COUNT\" -gt 0 ]; then cd /workspace/repo && NEW_COMMENTS=$(cat /tmp/new_comments.json) npx tsx /workspace/agent/src/respond.ts; else echo 'No activity to respond to'; fi",
       "env": {
-        "GITHUB_TOKEN": "{{ credentials.github.access_token }}",
+        "GITHUB_TOKEN": "{{ credentials['github-app-oauth'].access_token }}",
         "ANTHROPIC_API_KEY": "{{ credentials.anthropic.api_key }}",
         "PR_NUMBER": "{{ input.pull_request.number }}",
         "REPO": "{{ input.repository.full_name }}",
@@ -116,7 +116,7 @@
       "command": "cd /workspace/repo && COMMIT_SHA=$(cat /tmp/last_commit.txt) && npx tsx /workspace/agent/src/review.ts",
       "if": "{{ steps.check-re-review.output == 're-review' }}",
       "env": {
-        "GITHUB_TOKEN": "{{ credentials.github.access_token }}",
+        "GITHUB_TOKEN": "{{ credentials['github-app-oauth'].access_token }}",
         "ANTHROPIC_API_KEY": "{{ credentials.anthropic.api_key }}",
         "PR_NUMBER": "{{ input.pull_request.number }}",
         "REPO": "{{ input.repository.full_name }}",

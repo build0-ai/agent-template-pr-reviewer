@@ -1,4 +1,4 @@
-import { query } from "@anthropic-ai/claude-code";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { ReviewSchema, type Review } from "./schemas.js";
 import { postReview, getPRFiles, getPRDiff } from "./github.js";
@@ -29,12 +29,15 @@ async function main() {
     .join("\n");
 
   // Truncate diff if too large (keep under 100KB for context)
-  const truncatedDiff = diff.length > 100000 ? diff.slice(0, 100000) + "\n... (truncated)" : diff;
+  const truncatedDiff =
+    diff.length > 100000 ? diff.slice(0, 100000) + "\n... (truncated)" : diff;
 
   // Convert Zod schema to JSON Schema for structured output
-  const schema = zodToJsonSchema(ReviewSchema, { $refStrategy: "root" });
+  const schema = zodToJsonSchema(ReviewSchema, { $refStrategy: "none" });
 
   let review: Review | null = null;
+
+  console.log("Running Claude Agent SDK for code review...");
 
   // Run Claude Agent SDK query with structured output
   for await (const message of query({
@@ -73,9 +76,11 @@ Provide specific, actionable feedback with exact file paths and line numbers.
 
 Be constructive, specific, and reference actual code you've examined.`,
     options: {
+      allowDangerouslySkipPermissions: true,
+      permissionMode: "bypassPermissions",
       outputFormat: {
         type: "json_schema",
-        schema: schema,
+        schema: schema as Record<string, unknown>,
       },
     },
   })) {
@@ -85,21 +90,23 @@ Be constructive, specific, and reference actual code you've examined.`,
     }
 
     // Capture the final structured output
-    if (message.type === "result" && message.structured_output) {
-      const parsed = ReviewSchema.safeParse(message.structured_output);
-      if (parsed.success) {
-        review = parsed.data;
-        console.log(`Review generated: ${review.decision}`);
-        console.log(`Comments: ${review.comments.length}`);
-      } else {
-        console.error("Failed to parse review output:", parsed.error);
+    if (message.type === "result") {
+      if (message.subtype === "success" && message.structured_output) {
+        const parsed = ReviewSchema.safeParse(message.structured_output);
+        if (parsed.success) {
+          review = parsed.data;
+          console.log(`Review generated: ${review.decision}`);
+          console.log(`Comments: ${review.comments.length}`);
+        } else {
+          console.error("Failed to parse review output:", parsed.error.errors);
+        }
+      } else if (message.subtype === "error_max_structured_output_retries") {
+        console.error("Failed to generate valid structured output after retries");
+        process.exit(1);
+      } else if (message.subtype === "error_during_execution") {
+        console.error("Error during execution:", message.errors);
+        process.exit(1);
       }
-    }
-
-    // Handle errors
-    if (message.type === "result" && message.subtype === "error_max_structured_output_retries") {
-      console.error("Failed to generate valid structured output after retries");
-      process.exit(1);
     }
   }
 
@@ -124,7 +131,9 @@ Be constructive, specific, and reference actual code you've examined.`,
   console.log(`Summary: ${review.summary}`);
   console.log(`\nComments (${review.comments.length}):`);
   for (const comment of review.comments) {
-    console.log(`  - ${comment.path}:${comment.line} [${comment.severity || "info"}]`);
+    console.log(
+      `  - ${comment.path}:${comment.line} [${comment.severity || "info"}]`
+    );
     console.log(`    ${comment.body.slice(0, 100)}...`);
   }
 }
