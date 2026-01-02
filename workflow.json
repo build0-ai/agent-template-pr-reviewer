@@ -40,6 +40,7 @@
       "name": "Generate AI code review",
       "command": "cd /workspace/repo && npx tsx /workspace/agent/src/review.ts",
       "env": {
+        "IS_SANDBOX": "1",
         "GITHUB_TOKEN": "{{ credentials['github-app-oauth'].access_token }}",
         "ANTHROPIC_API_KEY": "{{ credentials.anthropic.api_key }}",
         "PR_NUMBER": "{{ input.pull_request.number }}",
@@ -96,6 +97,7 @@
       "name": "Respond to new activity",
       "command": "HAS_NEW_COMMITS=$(cat /tmp/has_new_commits.txt 2>/dev/null || echo 'false') && COMMENT_COUNT=$(cat /tmp/new_comments.json 2>/dev/null | jq 'length' || echo '0') && if [ \"$HAS_NEW_COMMITS\" = 'true' ] || [ \"$COMMENT_COUNT\" -gt 0 ]; then cd /workspace/repo && NEW_COMMENTS=$(cat /tmp/new_comments.json) npx tsx /workspace/agent/src/respond.ts; else echo 'No activity to respond to'; fi",
       "env": {
+        "IS_SANDBOX": "1",
         "GITHUB_TOKEN": "{{ credentials['github-app-oauth'].access_token }}",
         "ANTHROPIC_API_KEY": "{{ credentials.anthropic.api_key }}",
         "PR_NUMBER": "{{ input.pull_request.number }}",
@@ -116,6 +118,7 @@
       "command": "cd /workspace/repo && COMMIT_SHA=$(cat /tmp/last_commit.txt) && npx tsx /workspace/agent/src/review.ts",
       "if": "{{ steps.check-re-review.output == 're-review' }}",
       "env": {
+        "IS_SANDBOX": "1",
         "GITHUB_TOKEN": "{{ credentials['github-app-oauth'].access_token }}",
         "ANTHROPIC_API_KEY": "{{ credentials.anthropic.api_key }}",
         "PR_NUMBER": "{{ input.pull_request.number }}",
