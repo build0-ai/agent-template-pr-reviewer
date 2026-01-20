@@ -26,7 +26,8 @@ export async function postReview(
 ): Promise<unknown> {
   const url = `${GITHUB_API}/repos/${repo}/pulls/${prNumber}/reviews`;
 
-  const body = {
+  // Try posting with line-specific comments first
+  const bodyWithComments = {
     commit_id: commitSha,
     body: `## 🤖 AI Code Review\n\n${review.summary}`,
     event: review.decision,
@@ -37,11 +38,36 @@ export async function postReview(
     })),
   };
 
-  const response = await fetch(url, {
+  let response = await fetch(url, {
     method: "POST",
     headers: getHeaders(),
-    body: JSON.stringify(body),
+    body: JSON.stringify(bodyWithComments),
   });
+
+  // If line comments fail (422), fallback to posting review with comments in body
+  if (response.status === 422 && review.comments.length > 0) {
+    console.error("Line-specific comments failed, posting comments in review body instead");
+
+    const commentsAsText = review.comments
+      .map((c) => {
+        const severity = c.severity ? `**[${c.severity.toUpperCase()}]** ` : "";
+        return `### \`${c.path}:${c.line}\`\n${severity}${c.body}`;
+      })
+      .join("\n\n---\n\n");
+
+    const bodyWithoutComments = {
+      commit_id: commitSha,
+      body: `## 🤖 AI Code Review\n\n${review.summary}\n\n---\n\n## Comments\n\n${commentsAsText}`,
+      event: review.decision,
+      comments: [],
+    };
+
+    response = await fetch(url, {
+      method: "POST",
+      headers: getHeaders(),
+      body: JSON.stringify(bodyWithoutComments),
+    });
+  }
 
   if (!response.ok) {
     const error = await response.text();

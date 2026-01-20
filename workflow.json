@@ -3,144 +3,142 @@
   "version": "1.0",
   "steps": [
     {
-      "id": "skip-if-bot",
+      "id": "clone-and-fetch",
       "type": "command",
-      "name": "Skip bot PRs",
-      "command": "if echo '{{ input.pull_request.user.login }}' | grep -qE '\\[bot\\]$|^dependabot|^renovate|^github-actions'; then echo 'Skipping bot PR'; exit 1; fi && echo 'Not a bot PR: {{ input.pull_request.user.login }}'",
-      "onError": "continue"
-    },
-    {
-      "id": "clone-repo",
-      "type": "command",
-      "name": "Clone repository",
-      "command": "git clone --depth=100 https://x-access-token:$GITHUB_TOKEN@github.com/{{ input.repository.full_name }}.git /workspace/repo && cd /workspace/repo && git fetch origin pull/{{ input.pull_request.number }}/head:pr-branch && git checkout pr-branch && echo 'Repository cloned and PR branch checked out'",
+      "name": "Clone repo and fetch PR data",
+      "command": "rm -rf /workspace/repo && gh repo clone {{ input.repository.full_name }} /workspace/repo -- --depth=100 && cd /workspace/repo && gh pr checkout {{ input.pull_request.number }} --detach && FILES=$(gh pr view {{ input.pull_request.number }} --repo {{ input.repository.full_name }} --json files --jq '.files | map(\"- \\(.path) (+\\(.additions)/-\\(.deletions))\") | join(\"\\n\")') && DIFF=$(gh pr diff {{ input.pull_request.number }} --repo {{ input.repository.full_name }}) && if [ ${#DIFF} -gt 100000 ]; then DIFF=\"${DIFF:0:100000}\n... (truncated)\"; fi && jq -n --arg files \"$FILES\" --arg diff \"$DIFF\" '{files: $files, diff: $diff}'",
       "env": {
-        "GITHUB_TOKEN": "{{ credentials['github-app-oauth'].access_token }}"
+        "GH_TOKEN": "{{ credentials['github-app-oauth'].access_token }}"
       },
       "retries": 2,
       "retryDelay": 3000
     },
     {
-      "id": "install-deps",
+      "id": "generate-review",
       "type": "command",
-      "name": "Install reviewer dependencies",
-      "command": "cd /workspace/agent && npm install && echo 'Dependencies installed'",
-      "retries": 2,
-      "retryDelay": 5000
-    },
-    {
-      "id": "save-metadata",
-      "type": "command",
-      "name": "Save PR metadata",
-      "command": "echo '{{ input.pull_request.head.sha }}' > /tmp/last_commit.txt && date -u +%Y-%m-%dT%H:%M:%SZ > /tmp/last_check.txt && echo 'Metadata saved'"
-    },
-    {
-      "id": "initial-review",
-      "type": "command",
-      "name": "Generate AI code review",
+      "name": "Review PR",
       "command": "cd /workspace/repo && npx tsx /workspace/agent/src/review.ts",
+      "params": {
+        "prompt": "You are an expert code reviewer analyzing PR #{{ input.pull_request.number }} in this repository.\n\n## PR Information\n**Title:** {{ input.pull_request.title }}\n**Description:** {{ input.pull_request.body }}\n\n## Changed Files\n{{ JSON.parse(steps['clone-and-fetch'].output).files }}\n\n## Diff\n```diff\n{{ JSON.parse(steps['clone-and-fetch'].output).diff }}\n```\n\n## Your Task\nPerform a thorough code review of this pull request. You have access to the full codebase - use the Read and Grep tools to:\n1. Examine the changed files in detail\n2. Understand the context by reading related files\n3. Check for consistency with existing patterns in the codebase\n\n## Review Focus Areas\n- **Bugs & Edge Cases**: Logic errors, null checks, boundary conditions\n- **Security**: Input validation, authentication, authorization, injection vulnerabilities\n- **Performance**: Inefficient algorithms, unnecessary allocations, N+1 queries\n- **Code Quality**: Readability, maintainability, proper error handling\n- **Consistency**: Following existing patterns and conventions in the codebase\n\n## Output Requirements\nProvide specific, actionable feedback with exact file paths and line numbers.\n- Use APPROVE only if the code is ready to merge\n- Use REQUEST_CHANGES if there are issues that must be fixed\n- Use COMMENT for general feedback without blocking\n\nBe constructive, specific, and reference actual code you've examined."
+      },
       "env": {
         "IS_SANDBOX": "1",
         "GITHUB_TOKEN": "{{ credentials['github-app-oauth'].access_token }}",
-        "ANTHROPIC_API_KEY": "{{ credentials.anthropic.apiKey }}",
+        "ANTHROPIC_API_KEY": "{{ credentials['anthropic-api-9761'].ANTHROPIC_API_KEY }}",
+        "ANTHROPIC_BASE_URL": "{{ credentials['anthropic-api-9761'].ANTHROPIC_BASE_URL }}",
+        "PROMPT": "{{ params.prompt }}",
         "PR_NUMBER": "{{ input.pull_request.number }}",
         "REPO": "{{ input.repository.full_name }}",
-        "COMMIT_SHA": "{{ input.pull_request.head.sha }}",
-        "PR_TITLE": "{{ input.pull_request.title }}",
-        "PR_BODY": "{{ input.pull_request.body }}"
-      },
-      "retries": 2,
-      "retryDelay": 10000
+        "COMMIT_SHA": "{{ input.pull_request.head.sha }}"
+      }
     },
     {
       "id": "save-checkpoint",
       "type": "command",
-      "name": "Save checkpoint after review",
-      "command": "date -u +%Y-%m-%dT%H:%M:%SZ > /tmp/last_check.txt && echo 'Checkpoint saved'"
+      "name": "Save checkpoint",
+      "command": "cd /workspace/repo && COMMIT_SHA=$(git rev-parse HEAD) && echo '{\"timestamp\": \"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'\", \"commit_sha\": \"'$COMMIT_SHA'\"}' | jq -c ."
     },
     {
       "id": "poll-wait",
       "type": "sleep",
-      "name": "Wait before checking for updates",
-      "duration": 300000
+      "name": "Wait for updates",
+      "duration": 30000
     },
     {
-      "id": "check-pr-status",
+      "id": "check-pr-and-activity",
       "type": "command",
-      "name": "Check if PR is still open",
-      "command": "PR_STATE=$(curl -sL -H \"Authorization: token $GITHUB_TOKEN\" \"https://api.github.com/repos/{{ input.repository.full_name }}/pulls/{{ input.pull_request.number }}\" | jq -r '.state') && echo \"$PR_STATE\" > /tmp/pr_state.txt && echo \"PR state: $PR_STATE\"",
+      "name": "Check PR status and activity",
+      "command": "PR_DATA=$(gh pr view {{ input.pull_request.number }} --repo {{ input.repository.full_name }} --json state,headRefOid) && STATE=$(echo \"$PR_DATA\" | jq -r '.state') && if [ \"$STATE\" != 'OPEN' ]; then echo \"$STATE\" && exit 1; fi && CURRENT_SHA=$(echo \"$PR_DATA\" | jq -r '.headRefOid') && LAST_SHA=$(printf '%s' \"$CHECKPOINT_JSON\" | jq -r '.commit_sha') && HAS_NEW_COMMITS=false && if [ \"$LAST_SHA\" != \"$CURRENT_SHA\" ]; then cd /workspace/repo && gh pr checkout {{ input.pull_request.number }} --detach --force >&2 && HAS_NEW_COMMITS=true; fi && SINCE=$(printf '%s' \"$CHECKPOINT_JSON\" | jq -r '.timestamp') && NEW_COMMENTS=$(gh api repos/{{ input.repository.full_name }}/pulls/{{ input.pull_request.number }}/comments --jq \"[.[] | select(.created_at > \\\"$SINCE\\\" and (.user.login | contains(\\\"[bot]\\\") | not) and (.body | contains(\\\"🤖\\\") | not))]\") && jq -n --argjson has_new_commits $HAS_NEW_COMMITS --arg current_sha \"$CURRENT_SHA\" --argjson new_comments \"$NEW_COMMENTS\" '{has_new_commits: $has_new_commits, current_sha: $current_sha, new_comments: $new_comments}'",
       "env": {
-        "GITHUB_TOKEN": "{{ credentials['github-app-oauth'].access_token }}"
-      }
-    },
-    {
-      "id": "check-new-commits",
-      "type": "command",
-      "name": "Check for new commits",
-      "command": "LAST_SHA=$(cat /tmp/last_commit.txt) && CURRENT_SHA=$(curl -sL -H \"Authorization: token $GITHUB_TOKEN\" \"https://api.github.com/repos/{{ input.repository.full_name }}/pulls/{{ input.pull_request.number }}\" | jq -r '.head.sha') && if [ \"$LAST_SHA\" != \"$CURRENT_SHA\" ]; then echo \"$CURRENT_SHA\" > /tmp/last_commit.txt && echo 'true' > /tmp/has_new_commits.txt && cd /workspace/repo && git fetch origin pr-branch && git reset --hard FETCH_HEAD && echo 'New commits detected'; else echo 'false' > /tmp/has_new_commits.txt && echo 'No new commits'; fi",
-      "env": {
-        "GITHUB_TOKEN": "{{ credentials['github-app-oauth'].access_token }}"
-      }
-    },
-    {
-      "id": "check-new-comments",
-      "type": "command",
-      "name": "Check for new comments",
-      "command": "SINCE=$(cat /tmp/last_check.txt) && curl -sL -H \"Authorization: token $GITHUB_TOKEN\" \"https://api.github.com/repos/{{ input.repository.full_name }}/pulls/{{ input.pull_request.number }}/comments?since=$SINCE\" > /tmp/new_comments.json && COMMENT_COUNT=$(cat /tmp/new_comments.json | jq 'length') && echo \"Found $COMMENT_COUNT new comments\"",
-      "env": {
-        "GITHUB_TOKEN": "{{ credentials['github-app-oauth'].access_token }}"
-      }
+        "GH_TOKEN": "{{ credentials['github-app-oauth'].access_token }}",
+        "CHECKPOINT_JSON": "{{ steps['save-checkpoint'].output }}"
+      },
+      "onError": "goto",
+      "onErrorGoto": "is-review-completed"
     },
     {
       "id": "respond-to-activity",
       "type": "command",
       "name": "Respond to new activity",
-      "command": "HAS_NEW_COMMITS=$(cat /tmp/has_new_commits.txt 2>/dev/null || echo 'false') && COMMENT_COUNT=$(cat /tmp/new_comments.json 2>/dev/null | jq 'length' || echo '0') && if [ \"$HAS_NEW_COMMITS\" = 'true' ] || [ \"$COMMENT_COUNT\" -gt 0 ]; then cd /workspace/repo && NEW_COMMENTS=$(cat /tmp/new_comments.json) npx tsx /workspace/agent/src/respond.ts; else echo 'No activity to respond to'; fi",
+      "if": "{{ JSON.parse(steps['check-pr-and-activity'].output).has_new_commits || JSON.parse(steps['check-pr-and-activity'].output).new_comments.length > 0 }}",
+      "command": "cd /workspace/repo && npx tsx /workspace/agent/src/respond.ts",
+      "params": {
+        "prompt": "New activity on the PR:\n\n### New Comments\n{{ JSON.stringify(JSON.parse(steps['check-pr-and-activity'].output).new_comments) }}\n\n### New Commits\n{{ JSON.parse(steps['check-pr-and-activity'].output).has_new_commits }}\n\nRespond to comments and/or acknowledge new commits. If significant changes need a full re-review, set should_re_review to true."
+      },
       "env": {
         "IS_SANDBOX": "1",
         "GITHUB_TOKEN": "{{ credentials['github-app-oauth'].access_token }}",
-        "ANTHROPIC_API_KEY": "{{ credentials.anthropic.apiKey }}",
+        "ANTHROPIC_API_KEY": "{{ credentials['anthropic-api-9761'].ANTHROPIC_API_KEY }}",
+        "ANTHROPIC_BASE_URL": "{{ credentials['anthropic-api-9761'].ANTHROPIC_BASE_URL }}",
         "PR_NUMBER": "{{ input.pull_request.number }}",
         "REPO": "{{ input.repository.full_name }}",
-        "HAS_NEW_COMMITS": "{{ steps.check-new-commits.output }}"
+        "HAS_NEW_COMMITS": "{{ JSON.parse(steps['check-pr-and-activity'].output).has_new_commits }}",
+        "NEW_COMMENTS": "{{ JSON.stringify(JSON.parse(steps['check-pr-and-activity'].output).new_comments) }}",
+        "PROMPT_TEMPLATE": "{{ params.prompt }}"
       }
-    },
-    {
-      "id": "check-re-review",
-      "type": "command",
-      "name": "Check if re-review is needed",
-      "command": "if [ -f /tmp/should_re_review.txt ] && [ \"$(cat /tmp/should_re_review.txt)\" = 'true' ]; then rm /tmp/should_re_review.txt && echo 're-review'; else echo 'no-re-review'; fi"
     },
     {
       "id": "do-re-review",
       "type": "command",
-      "name": "Perform re-review if needed",
-      "command": "cd /workspace/repo && COMMIT_SHA=$(cat /tmp/last_commit.txt) && npx tsx /workspace/agent/src/review.ts",
-      "if": "{{ steps.check-re-review.output == 're-review' }}",
+      "name": "Re-review PR",
+      "command": "cd /workspace/repo && npx tsx /workspace/agent/src/review.ts",
+      "if": "{{ JSON.parse(steps['respond-to-activity']?.output || '{}').re_review }}",
+      "params": {
+        "prompt": "New commits have been pushed. Re-review the PR with the same criteria as before."
+      },
       "env": {
         "IS_SANDBOX": "1",
         "GITHUB_TOKEN": "{{ credentials['github-app-oauth'].access_token }}",
-        "ANTHROPIC_API_KEY": "{{ credentials.anthropic.apiKey }}",
+        "ANTHROPIC_API_KEY": "{{ credentials['anthropic-api-9761'].ANTHROPIC_API_KEY }}",
+        "ANTHROPIC_BASE_URL": "{{ credentials['anthropic-api-9761'].ANTHROPIC_BASE_URL }}",
+        "PROMPT": "{{ params.prompt }}",
         "PR_NUMBER": "{{ input.pull_request.number }}",
         "REPO": "{{ input.repository.full_name }}",
-        "COMMIT_SHA": "{{ steps.check-new-commits.output }}",
-        "PR_TITLE": "{{ input.pull_request.title }}",
-        "PR_BODY": "{{ input.pull_request.body }}"
+        "COMMIT_SHA": "{{ JSON.parse(steps['check-pr-and-activity'].output).current_sha }}"
       }
     },
     {
-      "id": "update-checkpoint",
+      "id": "is-review-completed",
       "type": "command",
-      "name": "Update checkpoint timestamp",
-      "command": "date -u +%Y-%m-%dT%H:%M:%SZ > /tmp/last_check.txt && echo 'Checkpoint updated'"
+      "name": "Check if review is completed",
+      "command": "if echo \"$LAST_OUTPUT\" | grep -q '^{'; then exit 1; fi",
+      "env": {
+        "LAST_OUTPUT": "{{ steps['check-pr-and-activity'].output }}"
+      },
+      "onError": "goto",
+      "onErrorGoto": "save-checkpoint"
     },
     {
-      "id": "loop-back",
-      "type": "command",
-      "name": "Continue polling loop",
-      "command": "PR_STATE=$(cat /tmp/pr_state.txt 2>/dev/null || echo 'open') && if [ \"$PR_STATE\" = 'open' ]; then echo 'PR still open, continuing poll'; exit 1; else echo 'PR closed, ending workflow'; exit 0; fi",
-      "onError": "goto",
-      "onErrorGoto": "poll-wait"
+      "id": "wrap-up",
+      "type": "analytics",
+      "name": "Wrap up",
+      "events": [
+        {
+          "name": "pr_reviewed",
+          "value": 1,
+          "category": "outcomes"
+        },
+        {
+          "name": "pr_approved",
+          "value": "{{ JSON.parse(steps['generate-review'].output).decision === 'APPROVE' ? 1 : 0 }}",
+          "category": "outcomes"
+        },
+        {
+          "name": "pr_changes_requested",
+          "value": "{{ JSON.parse(steps['generate-review'].output).decision === 'REQUEST_CHANGES' ? 1 : 0 }}",
+          "category": "outcomes"
+        },
+        {
+          "name": "review_comments",
+          "value": "{{ JSON.parse(steps['generate-review'].output).comments_count }}",
+          "category": "engagement"
+        },
+        {
+          "name": "replies_posted",
+          "value": "{{ JSON.parse(steps['respond-to-activity']?.output || '{\"replies_count\":0}').replies_count }}",
+          "category": "engagement"
+        }
+      ]
     }
   ]
 }

@@ -2,6 +2,7 @@
   "name": "pr-reviewer-agent",
   "version": "1.0.0",
   "type": "module",
+  "packageManager": "pnpm@9.15.4",
   "scripts": {
     "review": "tsx src/review.ts",
     "respond": "tsx src/respond.ts"

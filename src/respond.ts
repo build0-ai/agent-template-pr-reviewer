@@ -1,13 +1,14 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { ResponseSchema, type Response } from "./schemas.js";
-import { postReplies, postComment, getPRDiff } from "./github.js";
+import { postReplies, postComment } from "./github.js";
 
 // Environment variables passed from workflow
 const PR_NUMBER = process.env.PR_NUMBER!;
 const REPO = process.env.REPO!;
 const NEW_COMMENTS_JSON = process.env.NEW_COMMENTS || "[]";
 const HAS_NEW_COMMITS = process.env.HAS_NEW_COMMITS === "true";
+const PROMPT = process.env.PROMPT_TEMPLATE!;
 
 interface PRComment {
   id: number;
@@ -23,15 +24,8 @@ async function main() {
   try {
     newComments = JSON.parse(NEW_COMMENTS_JSON);
   } catch {
-    console.log("No valid comments JSON, checking file...");
-    // Try reading from file if env var didn't work
-    const fs = await import("fs/promises");
-    try {
-      const data = await fs.readFile("/tmp/new_comments.json", "utf-8");
-      newComments = JSON.parse(data);
-    } catch {
-      newComments = [];
-    }
+    console.error("No valid comments JSON");
+    newComments = [];
   }
 
   // Filter out our own bot comments to avoid self-replies
@@ -41,85 +35,31 @@ async function main() {
   );
 
   if (externalComments.length === 0 && !HAS_NEW_COMMITS) {
-    console.log("No new activity to respond to");
+    console.error("No new activity to respond to");
+    console.log(JSON.stringify({ re_review: false, replies_count: 0 }));
     return;
   }
 
-  console.log(`Responding to PR #${PR_NUMBER} in ${REPO}`);
-  console.log(`New comments: ${externalComments.length}`);
-  console.log(`Has new commits: ${HAS_NEW_COMMITS}`);
+  console.error(`Responding to PR #${PR_NUMBER} in ${REPO}`);
+  console.error(`New comments: ${externalComments.length}`);
+  console.error(`Has new commits: ${HAS_NEW_COMMITS}`);
 
-  // Format comments for the prompt
-  const commentsContext = externalComments
-    .map(
-      (c) =>
-        `[Comment ID: ${c.id}] @${c.user.login} ${c.path ? `on ${c.path}:${c.line}` : ""}:
-${c.body}`
-    )
-    .join("\n\n");
-
-  // Get diff if there are new commits
-  let diffContext = "";
-  if (HAS_NEW_COMMITS) {
-    try {
-      const diff = await getPRDiff(REPO, PR_NUMBER);
-      diffContext =
-        diff.length > 50000 ? diff.slice(0, 50000) + "\n... (truncated)" : diff;
-    } catch (error) {
-      console.log("Could not fetch diff:", error);
-    }
-  }
+  // Prompt is already populated by workflow step
+  console.error(`Prompt length: ${PROMPT?.length ?? "undefined"} chars`);
 
   // Convert Zod schema to JSON Schema
   const schema = zodToJsonSchema(ResponseSchema, { $refStrategy: "none" });
 
   let response: Response | null = null;
 
-  console.log("Running Claude Agent SDK to formulate response...");
+  console.error("Running Claude Agent SDK to formulate response...");
 
   // Run Claude Agent SDK query
   for await (const message of query({
-    prompt: `You are monitoring PR #${PR_NUMBER} for activity and need to respond appropriately.
-
-## New Activity
-
-${
-  externalComments.length > 0
-    ? `### New Comments
-${commentsContext}`
-    : "No new comments."
-}
-
-${
-  HAS_NEW_COMMITS
-    ? `### New Commits Pushed
-The author has pushed new commits. Here's the current diff:
-\`\`\`diff
-${diffContext}
-\`\`\`
-`
-    : "No new commits."
-}
-
-## Your Task
-
-1. **If there are new comments**: Read each comment carefully and formulate helpful replies.
-   - Answer questions about your previous review
-   - Clarify any feedback that was misunderstood
-   - Acknowledge when the author makes valid points
-   - Be polite and constructive
-
-2. **If there are new commits**:
-   - Examine what changed using the Read tool if needed
-   - Determine if the changes address your previous feedback
-   - If significant changes were made that need full review, set should_re_review to true
-   - You can add a general comment acknowledging the updates
-
-3. **For replies**: Use the exact comment_id from the comments above
-
-Be concise, helpful, and professional. Don't repeat yourself.`,
+    prompt: PROMPT,
     options: {
       allowDangerouslySkipPermissions: true,
+      continue: true,
       permissionMode: "bypassPermissions",
       outputFormat: {
         type: "json_schema",
@@ -127,21 +67,19 @@ Be concise, helpful, and professional. Don't repeat yourself.`,
       },
     },
   })) {
-    if (message.type === "assistant") {
-      console.log("Agent is formulating response...");
-    }
+    console.error(JSON.stringify(message));
 
     if (message.type === "result") {
       if (message.subtype === "success" && message.structured_output) {
         const parsed = ResponseSchema.safeParse(message.structured_output);
         if (parsed.success) {
           response = parsed.data;
-          console.log(`Response generated:`);
-          console.log(`  Replies: ${response.replies.length}`);
-          console.log(
+          console.error(`Response generated:`);
+          console.error(`  Replies: ${response.replies.length}`);
+          console.error(
             `  General comment: ${response.general_comment ? "yes" : "no"}`
           );
-          console.log(`  Should re-review: ${response.should_re_review}`);
+          console.error(`  Should re-review: ${response.should_re_review}`);
         } else {
           console.error("Failed to parse response:", parsed.error.errors);
         }
@@ -156,16 +94,17 @@ Be concise, helpful, and professional. Don't repeat yourself.`,
   }
 
   if (!response) {
-    console.log("No response generated");
+    console.error("No response generated");
+    console.log(JSON.stringify({ re_review: false, replies_count: 0 }));
     return;
   }
 
   // Post replies to comments
   if (response.replies.length > 0) {
-    console.log(`Posting ${response.replies.length} replies...`);
+    console.error(`Posting ${response.replies.length} replies...`);
     try {
       await postReplies(REPO, PR_NUMBER, response.replies);
-      console.log("Replies posted successfully");
+      console.error("Replies posted successfully");
     } catch (error) {
       console.error("Failed to post replies:", error);
     }
@@ -173,28 +112,28 @@ Be concise, helpful, and professional. Don't repeat yourself.`,
 
   // Post general comment if provided
   if (response.general_comment) {
-    console.log("Posting general comment...");
+    console.error("Posting general comment...");
     try {
       await postComment(
         REPO,
         PR_NUMBER,
         `🤖 **Update**\n\n${response.general_comment}`
       );
-      console.log("Comment posted successfully");
+      console.error("Comment posted successfully");
     } catch (error) {
       console.error("Failed to post comment:", error);
     }
   }
 
-  // Signal if re-review is needed
+  // Output JSON with metrics for workflow
+  console.error("Response handling complete");
   if (response.should_re_review) {
-    console.log("RE-REVIEW RECOMMENDED: Significant changes detected");
-    // Write flag file for workflow to detect
-    const fs = await import("fs/promises");
-    await fs.writeFile("/tmp/should_re_review.txt", "true");
+    console.error("RE-REVIEW RECOMMENDED: Significant changes detected");
   }
-
-  console.log("Response handling complete");
+  console.log(JSON.stringify({
+    re_review: response.should_re_review,
+    replies_count: response.replies.length
+  }));
 }
 
 main().catch((error) => {
