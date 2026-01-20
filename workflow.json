@@ -24,8 +24,8 @@
       "env": {
         "IS_SANDBOX": "1",
         "GITHUB_TOKEN": "{{ credentials['github-app-oauth'].access_token }}",
-        "ANTHROPIC_API_KEY": "{{ credentials['anthropic-api-9761'].ANTHROPIC_API_KEY }}",
-        "ANTHROPIC_BASE_URL": "{{ credentials['anthropic-api-9761'].ANTHROPIC_BASE_URL }}",
+        "ANTHROPIC_API_KEY": "{{ credentials['anthropic-api'].ANTHROPIC_API_KEY }}",
+        "ANTHROPIC_BASE_URL": "{{ credentials['anthropic-api'].ANTHROPIC_BASE_URL }}",
         "PROMPT": "{{ params.prompt }}",
         "PR_NUMBER": "{{ input.pull_request.number }}",
         "REPO": "{{ input.repository.full_name }}",
@@ -68,8 +68,8 @@
       "env": {
         "IS_SANDBOX": "1",
         "GITHUB_TOKEN": "{{ credentials['github-app-oauth'].access_token }}",
-        "ANTHROPIC_API_KEY": "{{ credentials['anthropic-api-9761'].ANTHROPIC_API_KEY }}",
-        "ANTHROPIC_BASE_URL": "{{ credentials['anthropic-api-9761'].ANTHROPIC_BASE_URL }}",
+        "ANTHROPIC_API_KEY": "{{ credentials['anthropic-api'].ANTHROPIC_API_KEY }}",
+        "ANTHROPIC_BASE_URL": "{{ credentials['anthropic-api'].ANTHROPIC_BASE_URL }}",
         "PR_NUMBER": "{{ input.pull_request.number }}",
         "REPO": "{{ input.repository.full_name }}",
         "HAS_NEW_COMMITS": "{{ JSON.parse(steps['check-pr-and-activity'].output).has_new_commits }}",
@@ -89,8 +89,8 @@
       "env": {
         "IS_SANDBOX": "1",
         "GITHUB_TOKEN": "{{ credentials['github-app-oauth'].access_token }}",
-        "ANTHROPIC_API_KEY": "{{ credentials['anthropic-api-9761'].ANTHROPIC_API_KEY }}",
-        "ANTHROPIC_BASE_URL": "{{ credentials['anthropic-api-9761'].ANTHROPIC_BASE_URL }}",
+        "ANTHROPIC_API_KEY": "{{ credentials['anthropic-api'].ANTHROPIC_API_KEY }}",
+        "ANTHROPIC_BASE_URL": "{{ credentials['anthropic-api'].ANTHROPIC_BASE_URL }}",
         "PROMPT": "{{ params.prompt }}",
         "PR_NUMBER": "{{ input.pull_request.number }}",
         "REPO": "{{ input.repository.full_name }}",
@@ -115,27 +115,31 @@
       "events": [
         {
           "name": "pr_reviewed",
-          "value": 1,
+          "type": "counter",
           "category": "outcomes"
         },
         {
           "name": "pr_approved",
           "value": "{{ JSON.parse(steps['generate-review'].output).decision === 'APPROVE' ? 1 : 0 }}",
+          "type": "counter",
           "category": "outcomes"
         },
         {
           "name": "pr_changes_requested",
           "value": "{{ JSON.parse(steps['generate-review'].output).decision === 'REQUEST_CHANGES' ? 1 : 0 }}",
+          "type": "counter",
           "category": "outcomes"
         },
         {
           "name": "review_comments",
           "value": "{{ JSON.parse(steps['generate-review'].output).comments_count }}",
+          "type": "gauge",
           "category": "engagement"
         },
         {
           "name": "replies_posted",
           "value": "{{ JSON.parse(steps['respond-to-activity']?.output || '{\"replies_count\":0}').replies_count }}",
+          "type": "gauge",
           "category": "engagement"
         }
       ]
