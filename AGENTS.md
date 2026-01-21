@@ -106,6 +106,34 @@ GitHub API helpers:
 - `replyToComment()`: Reply to an existing review comment
 - `postComment()`: Post a general PR comment
 
+## Review Behavior
+
+### Concise Reviews
+
+Reviews are designed to be short and actionable:
+
+- **Summary**: 2-3 sentences max - what the PR does and if it's ready to merge
+- **Comments**: Only flag issues that matter (bugs, security, broken logic)
+- **No nitpicks**: Style preferences and trivial observations are excluded
+
+### Comment Severity Levels
+
+| Severity | Use for |
+|----------|---------|
+| `critical` | Bugs, security vulnerabilities, broken logic |
+| `warning` | Issues that should be addressed |
+| `suggestion` | Meaningful improvements (not required) |
+
+### Inline Comment Posting
+
+Comments are posted inline at the specific line of code when possible:
+
+1. **Batch attempt**: Try posting all comments at once (efficient happy path)
+2. **Individual fallback**: If batch fails, post review summary then each comment individually
+3. **Graceful degradation**: Comments on invalid lines (outside diff range) are collected into an "Additional comments" section
+
+This ensures valid comments appear inline even when some target invalid line numbers (GitHub only allows comments on lines within the diff).
+
 ## Customization Guide
 
 ### Modifying Prompts

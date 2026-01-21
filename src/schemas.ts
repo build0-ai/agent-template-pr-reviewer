@@ -8,9 +8,9 @@ export const ReviewCommentSchema = z.object({
   line: z.number().int().positive().describe("Line number in the file"),
   body: z.string().describe("Review comment text in markdown"),
   severity: z
-    .enum(["critical", "warning", "suggestion", "nitpick"])
+    .enum(["critical", "warning", "suggestion"])
     .optional()
-    .describe("Severity level of the issue"),
+    .describe("Severity: critical for bugs/security, warning for issues, suggestion for improvements"),
 });
 
 /**

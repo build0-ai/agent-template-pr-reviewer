@@ -19,7 +19,7 @@
       "name": "Review PR",
       "command": "cd /workspace/repo && npx tsx /workspace/agent/src/review.ts",
       "params": {
-        "prompt": "You are an expert code reviewer analyzing PR #{{ input.pull_request.number }} in this repository.\n\n## PR Information\n**Title:** {{ input.pull_request.title }}\n**Description:** {{ input.pull_request.body }}\n\n## Changed Files\n{{ JSON.parse(steps['clone-and-fetch'].output).files }}\n\n## Diff\n```diff\n{{ JSON.parse(steps['clone-and-fetch'].output).diff }}\n```\n\n## Your Task\nPerform a thorough code review of this pull request. You have access to the full codebase - use the Read and Grep tools to:\n1. Examine the changed files in detail\n2. Understand the context by reading related files\n3. Check for consistency with existing patterns in the codebase\n\n## Review Focus Areas\n- **Bugs & Edge Cases**: Logic errors, null checks, boundary conditions\n- **Security**: Input validation, authentication, authorization, injection vulnerabilities\n- **Performance**: Inefficient algorithms, unnecessary allocations, N+1 queries\n- **Code Quality**: Readability, maintainability, proper error handling\n- **Consistency**: Following existing patterns and conventions in the codebase\n\n## Output Requirements\nProvide specific, actionable feedback with exact file paths and line numbers.\n- Use APPROVE only if the code is ready to merge\n- Use REQUEST_CHANGES if there are issues that must be fixed\n- Use COMMENT for general feedback without blocking\n\nBe constructive, specific, and reference actual code you've examined."
+        "prompt": "Review PR #{{ input.pull_request.number }}: {{ input.pull_request.title }}\n\nDescription: {{ input.pull_request.body }}\n\nChanged files:\n{{ JSON.parse(steps['clone-and-fetch'].output).files }}\n\nDiff:\n```diff\n{{ JSON.parse(steps['clone-and-fetch'].output).diff }}\n```\n\n## Instructions\nReview this PR. Use Read/Grep tools to check context if needed.\n\n## Rules\n1. **Summary**: 2-3 sentences max. State what the PR does what it says it does and if it's ready to merge.\n2. **Comments**: Only flag issues that actually matter:\n   - Bugs, security issues, or broken logic → critical/warning\n   - Suggestions that meaningfully improve the code → suggestion\n   - Do NOT add nitpicks, style preferences, or observations that don't require action\n3. **Line numbers**: ONLY comment on lines that appear in the diff with + or - prefix. Comments on unchanged lines will fail to post.\n4. **Decision**: APPROVE if good, REQUEST_CHANGES if blocking issues exist, COMMENT otherwise.\n\nBe direct. Less is more."
       },
       "env": {
         "IS_SANDBOX": "1",
@@ -42,7 +42,7 @@
       "id": "poll-wait",
       "type": "sleep",
       "name": "Wait for updates",
-      "duration": 30000
+      "duration": 120000
     },
     {
       "id": "check-pr-and-activity",

@@ -16,65 +16,105 @@ function getHeaders(): Record<string, string> {
 }
 
 /**
- * Post a review with line-specific comments to a PR
+ * Post a review with line-specific comments to a PR.
+ * Posts comments individually so one bad line number doesn't break all comments.
  */
 export async function postReview(
   repo: string,
   prNumber: string,
   commitSha: string,
   review: Review
-): Promise<unknown> {
-  const url = `${GITHUB_API}/repos/${repo}/pulls/${prNumber}/reviews`;
+): Promise<{ posted: number; failed: number }> {
+  const reviewUrl = `${GITHUB_API}/repos/${repo}/pulls/${prNumber}/reviews`;
 
-  // Try posting with line-specific comments first
-  const bodyWithComments = {
+  // First, post the review summary without comments
+  const reviewBody = {
     commit_id: commitSha,
-    body: `## 🤖 AI Code Review\n\n${review.summary}`,
+    body: review.summary,
     event: review.decision,
-    comments: review.comments.map((c) => ({
+    comments: [] as Array<{ path: string; line: number; body: string }>,
+  };
+
+  // Try to post all comments at once first (most efficient if they all work)
+  if (review.comments.length > 0) {
+    reviewBody.comments = review.comments.map((c) => ({
       path: c.path,
       line: c.line,
       body: c.severity ? `**[${c.severity.toUpperCase()}]** ${c.body}` : c.body,
-    })),
-  };
+    }));
 
-  let response = await fetch(url, {
-    method: "POST",
-    headers: getHeaders(),
-    body: JSON.stringify(bodyWithComments),
-  });
-
-  // If line comments fail (422), fallback to posting review with comments in body
-  if (response.status === 422 && review.comments.length > 0) {
-    console.error("Line-specific comments failed, posting comments in review body instead");
-
-    const commentsAsText = review.comments
-      .map((c) => {
-        const severity = c.severity ? `**[${c.severity.toUpperCase()}]** ` : "";
-        return `### \`${c.path}:${c.line}\`\n${severity}${c.body}`;
-      })
-      .join("\n\n---\n\n");
-
-    const bodyWithoutComments = {
-      commit_id: commitSha,
-      body: `## 🤖 AI Code Review\n\n${review.summary}\n\n---\n\n## Comments\n\n${commentsAsText}`,
-      event: review.decision,
-      comments: [],
-    };
-
-    response = await fetch(url, {
+    const batchResponse = await fetch(reviewUrl, {
       method: "POST",
       headers: getHeaders(),
-      body: JSON.stringify(bodyWithoutComments),
+      body: JSON.stringify(reviewBody),
     });
+
+    if (batchResponse.ok) {
+      return { posted: review.comments.length, failed: 0 };
+    }
+
+    // If batch failed, try posting comments individually
+    console.error("Batch comment posting failed, trying individual comments...");
   }
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Failed to post review: ${response.status} - ${error}`);
+  // Post review without comments first
+  reviewBody.comments = [];
+  const reviewResponse = await fetch(reviewUrl, {
+    method: "POST",
+    headers: getHeaders(),
+    body: JSON.stringify(reviewBody),
+  });
+
+  if (!reviewResponse.ok) {
+    const error = await reviewResponse.text();
+    throw new Error(`Failed to post review: ${reviewResponse.status} - ${error}`);
   }
 
-  return response.json();
+  // Now post each comment individually as review comments
+  let posted = 0;
+  let failed = 0;
+  const failedComments: Array<{ path: string; line: number; body: string }> = [];
+
+  for (const comment of review.comments) {
+    const commentUrl = `${GITHUB_API}/repos/${repo}/pulls/${prNumber}/comments`;
+    const commentBody = {
+      commit_id: commitSha,
+      path: comment.path,
+      line: comment.line,
+      body: comment.severity
+        ? `**[${comment.severity.toUpperCase()}]** ${comment.body}`
+        : comment.body,
+    };
+
+    const response = await fetch(commentUrl, {
+      method: "POST",
+      headers: getHeaders(),
+      body: JSON.stringify(commentBody),
+    });
+
+    if (response.ok) {
+      posted++;
+    } else {
+      failed++;
+      failedComments.push(commentBody);
+      console.error(`Failed to post comment on ${comment.path}:${comment.line}`);
+    }
+  }
+
+  // If any comments failed, add them to a follow-up comment
+  if (failedComments.length > 0) {
+    const fallbackText = failedComments
+      .map((c) => `**${c.path}:${c.line}**\n${c.body}`)
+      .join("\n\n---\n\n");
+
+    await postComment(
+      repo,
+      prNumber,
+      `### Additional comments\n\n_The following comments couldn't be added inline:_\n\n${fallbackText}`
+    );
+  }
+
+  return { posted, failed };
 }
 
 /**
