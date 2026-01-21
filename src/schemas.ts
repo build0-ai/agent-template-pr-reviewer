@@ -49,10 +49,11 @@ export const ResponseSchema = z.object({
     .string()
     .optional()
     .describe("Optional general comment on the PR"),
-  should_re_review: z
-    .boolean()
+  decision: z
+    .enum(["APPROVE", "REQUEST_CHANGES", "COMMENT"])
+    .optional()
     .describe(
-      "Whether the new commits contain significant changes that warrant a full re-review"
+      "Set to update the review status. APPROVE if issues are resolved, REQUEST_CHANGES if new issues found, COMMENT to add feedback without changing status. Omit to keep current status."
     ),
 });
 

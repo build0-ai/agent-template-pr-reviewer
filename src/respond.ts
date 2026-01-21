@@ -1,11 +1,12 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { ResponseSchema, type Response } from "./schemas.js";
-import { postReplies, postComment } from "./github.js";
+import { postReplies, postComment, postReview } from "./github.js";
 
 // Environment variables passed from workflow
 const PR_NUMBER = process.env.PR_NUMBER!;
 const REPO = process.env.REPO!;
+const COMMIT_SHA = process.env.COMMIT_SHA!;
 const NEW_COMMENTS_JSON = process.env.NEW_COMMENTS || "[]";
 const HAS_NEW_COMMITS = process.env.HAS_NEW_COMMITS === "true";
 const PROMPT = process.env.PROMPT_TEMPLATE!;
@@ -36,7 +37,7 @@ async function main() {
 
   if (externalComments.length === 0 && !HAS_NEW_COMMITS) {
     console.error("No new activity to respond to");
-    console.log(JSON.stringify({ re_review: false, replies_count: 0 }));
+    console.log(JSON.stringify({ replies_count: 0 }));
     return;
   }
 
@@ -76,10 +77,8 @@ async function main() {
           response = parsed.data;
           console.error(`Response generated:`);
           console.error(`  Replies: ${response.replies.length}`);
-          console.error(
-            `  General comment: ${response.general_comment ? "yes" : "no"}`
-          );
-          console.error(`  Should re-review: ${response.should_re_review}`);
+          console.error(`  General comment: ${response.general_comment ? "yes" : "no"}`);
+          console.error(`  Decision: ${response.decision || "none"}`);
         } else {
           console.error("Failed to parse response:", parsed.error.errors);
         }
@@ -95,7 +94,7 @@ async function main() {
 
   if (!response) {
     console.error("No response generated");
-    console.log(JSON.stringify({ re_review: false, replies_count: 0 }));
+    console.log(JSON.stringify({ replies_count: 0 }));
     return;
   }
 
@@ -110,8 +109,21 @@ async function main() {
     }
   }
 
-  // Post general comment if provided
-  if (response.general_comment) {
+  // Post review if decision is set (to update PR status)
+  if (response.decision) {
+    console.error(`Posting review with decision: ${response.decision}`);
+    try {
+      await postReview(REPO, PR_NUMBER, COMMIT_SHA, {
+        summary: response.general_comment || `Review status updated to ${response.decision}.`,
+        decision: response.decision,
+        comments: [],
+      });
+      console.error("Review posted successfully");
+    } catch (error) {
+      console.error("Failed to post review:", error);
+    }
+  } else if (response.general_comment) {
+    // Only post as general comment if no decision (status update)
     console.error("Posting general comment...");
     try {
       await postComment(
@@ -127,12 +139,9 @@ async function main() {
 
   // Output JSON with metrics for workflow
   console.error("Response handling complete");
-  if (response.should_re_review) {
-    console.error("RE-REVIEW RECOMMENDED: Significant changes detected");
-  }
   console.log(JSON.stringify({
-    re_review: response.should_re_review,
-    replies_count: response.replies.length
+    replies_count: response.replies.length,
+    decision: response.decision || null
   }));
 }
 

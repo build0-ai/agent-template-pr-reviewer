@@ -19,7 +19,7 @@
       "name": "Review PR",
       "command": "cd /workspace/repo && npx tsx /workspace/agent/src/review.ts",
       "params": {
-        "prompt": "Review PR #{{ input.pull_request.number }}: {{ input.pull_request.title }}\n\nDescription: {{ input.pull_request.body }}\n\nChanged files:\n{{ JSON.parse(steps['clone-and-fetch'].output).files }}\n\nDiff:\n```diff\n{{ JSON.parse(steps['clone-and-fetch'].output).diff }}\n```\n\n## Instructions\nReview this PR. Use Read/Grep tools to check context if needed.\n\n## Rules\n1. **Summary**: 2-3 sentences max. State what the PR does what it says it does and if it's ready to merge.\n2. **Comments**: Only flag issues that actually matter:\n   - Bugs, security issues, or broken logic → critical/warning\n   - Suggestions that meaningfully improve the code → suggestion\n   - Do NOT add nitpicks, style preferences, or observations that don't require action\n3. **Line numbers**: ONLY comment on lines that appear in the diff with + or - prefix. Comments on unchanged lines will fail to post.\n4. **Decision**: APPROVE if good, REQUEST_CHANGES if blocking issues exist, COMMENT otherwise.\n\nBe direct. Less is more."
+        "prompt": "Review PR #{{ input.pull_request.number }}: {{ input.pull_request.title }}\n\nDescription: {{ input.pull_request.body }}\n\nChanged files:\n{{ JSON.parse(steps['clone-and-fetch'].output).files }}\n\nDiff:\n```diff\n{{ JSON.parse(steps['clone-and-fetch'].output).diff }}\n```\n\n## Rules\n1. **Summary**: 2-3 sentences max. State what the PR does and if it's ready to merge.\n2. **Comments**: Only flag issues that actually matter:\n   - Bugs, security issues, or broken logic → critical/warning\n   - Suggestions that meaningfully improve the code → suggestion\n   - Do NOT add nitpicks, style preferences, or observations that don't require action\n3. **Line numbers**: ONLY comment on lines that appear in the diff with + or - prefix. Comments on unchanged lines will fail to post.\n4. **Decision**: APPROVE if good, REQUEST_CHANGES if blocking issues exist, COMMENT otherwise.\n\nBe direct. Less is more."
       },
       "env": {
         "IS_SANDBOX": "1",
@@ -57,13 +57,13 @@
       "onErrorGoto": "is-review-completed"
     },
     {
-      "id": "respond-to-activity",
+      "id": "re-review",
       "type": "command",
-      "name": "Respond to new activity",
+      "name": "Re-review PR",
       "if": "{{ JSON.parse(steps['check-pr-and-activity'].output).has_new_commits || JSON.parse(steps['check-pr-and-activity'].output).new_comments.length > 0 }}",
       "command": "cd /workspace/repo && npx tsx /workspace/agent/src/respond.ts",
       "params": {
-        "prompt": "New activity on the PR:\n\n### New Comments\n{{ JSON.stringify(JSON.parse(steps['check-pr-and-activity'].output).new_comments) }}\n\n### New Commits\n{{ JSON.parse(steps['check-pr-and-activity'].output).has_new_commits }}\n\nRespond to comments and/or acknowledge new commits. If significant changes need a full re-review, set should_re_review to true."
+        "prompt": "New activity on the PR:\n\n### New Comments\n{{ JSON.stringify(JSON.parse(steps['check-pr-and-activity'].output).new_comments) }}\n\n### New Commits\n{{ JSON.parse(steps['check-pr-and-activity'].output).has_new_commits }}\n\nRespond to comments. If there are new commits, review the changes and update your decision (APPROVE/REQUEST_CHANGES/COMMENT) accordingly."
       },
       "env": {
         "IS_SANDBOX": "1",
@@ -74,26 +74,7 @@
         "REPO": "{{ input.repository.full_name }}",
         "HAS_NEW_COMMITS": "{{ JSON.parse(steps['check-pr-and-activity'].output).has_new_commits }}",
         "NEW_COMMENTS": "{{ JSON.stringify(JSON.parse(steps['check-pr-and-activity'].output).new_comments) }}",
-        "PROMPT_TEMPLATE": "{{ params.prompt }}"
-      }
-    },
-    {
-      "id": "do-re-review",
-      "type": "command",
-      "name": "Re-review PR",
-      "command": "cd /workspace/repo && npx tsx /workspace/agent/src/review.ts",
-      "if": "{{ JSON.parse(steps['respond-to-activity']?.output || '{}').re_review }}",
-      "params": {
-        "prompt": "New commits have been pushed. Re-review the PR with the same criteria as before."
-      },
-      "env": {
-        "IS_SANDBOX": "1",
-        "GITHUB_TOKEN": "{{ credentials['github-app-oauth'].access_token }}",
-        "ANTHROPIC_API_KEY": "{{ credentials['anthropic-api'].ANTHROPIC_API_KEY }}",
-        "ANTHROPIC_BASE_URL": "{{ credentials['anthropic-api'].ANTHROPIC_BASE_URL }}",
-        "PROMPT": "{{ params.prompt }}",
-        "PR_NUMBER": "{{ input.pull_request.number }}",
-        "REPO": "{{ input.repository.full_name }}",
+        "PROMPT_TEMPLATE": "{{ params.prompt }}",
         "COMMIT_SHA": "{{ JSON.parse(steps['check-pr-and-activity'].output).current_sha }}"
       }
     },
@@ -138,7 +119,7 @@
         },
         {
           "name": "replies_posted",
-          "value": "{{ JSON.parse(steps['respond-to-activity']?.output || '{\"replies_count\":0}').replies_count }}",
+          "value": "{{ JSON.parse(steps['re-review']?.output || '{\"replies_count\":0}').replies_count }}",
           "type": "gauge",
           "category": "engagement"
         }

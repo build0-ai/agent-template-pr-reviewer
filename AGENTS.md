@@ -19,31 +19,28 @@ A Build0 workflow template for AI-powered GitHub PR review. Fork this template t
 
 ## How It Works
 
-### Workflow Steps (10 total)
+### Workflow Steps
 
-1. **clone-repo** - Clone repository and checkout PR branch
-2. **fetch-pr-data** - Fetch PR files and diff as JSON
-3. **generate-review** - Run AI review and post to GitHub
-4. **save-checkpoint** - Save timestamp and commit SHA (loop target)
-5. **poll-wait** - Wait 30 seconds
-6. **check-pr-status** - Check if PR is still open (exits loop if closed)
-7. **check-activity** - Check for new commits and comments
-8. **respond-to-activity** - Respond to comments, acknowledge commits (conditional)
-9. **do-re-review** - Full re-review if needed (conditional)
-10. **is-review-completed** - Loop back to save-checkpoint if PR still open
+1. **clone-and-fetch** - Clone repository, checkout PR branch, fetch files and diff
+2. **generate-review** - Run AI review and post to GitHub
+3. **save-checkpoint** - Save timestamp and commit SHA (loop target)
+4. **poll-wait** - Wait for updates
+5. **check-pr-and-activity** - Check if PR is open, detect new commits/comments
+6. **re-review** - Respond to comments, review new commits, update decision (conditional)
+7. **is-review-completed** - Loop back to save-checkpoint if PR still open
 
 ### Flow Diagram
 
 ```
-clone-repo → fetch-pr-data → generate-review → save-checkpoint
-                                                     ↓
-                    ┌────────────────────────── poll-wait
-                    ↓                                ↓
-            is-review-completed ← do-re-review ← respond-to-activity ← check-activity ← check-pr-status
-                    │                                                                          │
-                    │ (if PR closed)                                            (if PR closed) │
-                    ↓                                                                          ↓
-                  [end]                                                                      [end]
+clone-and-fetch → generate-review → save-checkpoint
+                                          ↓
+                    ┌──────────────── poll-wait
+                    ↓                     ↓
+            is-review-completed ← re-review ← check-pr-and-activity
+                    │                                 │
+                    │ (if PR closed)       (if PR closed)
+                    ↓                                 ↓
+                  [end]                             [end]
 ```
 
 ## Key Files
@@ -79,7 +76,7 @@ Template syntax inside `{{ }}` is JavaScript-based:
 Zod schemas for structured AI outputs:
 
 - `ReviewSchema`: PR review (summary, decision, line comments)
-- `ResponseSchema`: Activity response (replies, general comment, re-review flag)
+- `ResponseSchema`: Activity response (replies, general comment, decision update)
 
 ### `src/review.ts`
 
@@ -94,9 +91,9 @@ Runs AI review and posts to GitHub:
 Handles PR activity (comments, commits):
 
 1. Receives activity data via env vars
-2. Calls Claude Agent SDK to formulate responses
+2. Calls Claude Agent SDK with `continue: true` (preserves context from initial review)
 3. Posts replies to comments
-4. Outputs `re-review` if full re-review needed
+4. Posts review update if decision changes (APPROVE/REQUEST_CHANGES/COMMENT)
 
 ### `src/github.ts`
 
@@ -149,7 +146,7 @@ Prompts are in `params.prompt` for each AI step. Edit directly in workflow.json 
 }
 ```
 
-The `respond-to-activity` and `do-re-review` prompts are intentionally brief since they resume the existing Claude session with full context from the initial review.
+The `re-review` prompt is intentionally brief since it resumes the existing Claude session with full context from the initial review.
 
 ### Changing the AI Output Schema
 
@@ -223,8 +220,8 @@ Key design decisions:
 
 - **Single checkpoint step**: `save-checkpoint` handles both initial save and loop updates
 - **Timestamp before polling**: Checkpoint saved BEFORE `poll-wait` to avoid gaps
-- **Bot comment filtering**: `check-activity` filters out `[bot]` users and `🤖` emoji
-- **Session continuity**: `respond-to-activity` and `do-re-review` resume the Claude session, so prompts are brief
+- **Bot comment filtering**: `check-pr-and-activity` filters out `[bot]` users and `🤖` emoji
+- **Session continuity**: `re-review` resumes the Claude session with `continue: true`, so prompts are brief and the AI has full context from the initial review
 
 ## Common Modifications
 
