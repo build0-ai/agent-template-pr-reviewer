@@ -48,7 +48,7 @@
       "id": "check-pr-and-activity",
       "type": "command",
       "name": "Check PR status and activity",
-      "command": "PR_DATA=$(gh pr view {{ input.pull_request.number }} --repo {{ input.repository.full_name }} --json state,headRefOid) && STATE=$(echo \"$PR_DATA\" | jq -r '.state') && if [ \"$STATE\" != 'OPEN' ]; then echo \"$STATE\" && exit 1; fi && CURRENT_SHA=$(echo \"$PR_DATA\" | jq -r '.headRefOid') && LAST_SHA=$(printf '%s' \"$CHECKPOINT_JSON\" | jq -r '.commit_sha') && HAS_NEW_COMMITS=false && if [ \"$LAST_SHA\" != \"$CURRENT_SHA\" ]; then cd /workspace/repo && gh pr checkout {{ input.pull_request.number }} --detach --force >&2 && HAS_NEW_COMMITS=true; fi && SINCE=$(printf '%s' \"$CHECKPOINT_JSON\" | jq -r '.timestamp') && NEW_COMMENTS=$(gh api repos/{{ input.repository.full_name }}/pulls/{{ input.pull_request.number }}/comments --jq \"[.[] | select(.created_at > \\\"$SINCE\\\" and (.user.login | contains(\\\"[bot]\\\") | not) and (.body | contains(\\\"🤖\\\") | not))]\") && jq -n --argjson has_new_commits $HAS_NEW_COMMITS --arg current_sha \"$CURRENT_SHA\" --argjson new_comments \"$NEW_COMMENTS\" '{has_new_commits: $has_new_commits, current_sha: $current_sha, new_comments: $new_comments}'",
+      "command": "bash /workspace/agent/src/check-activity.sh \"{{ input.repository.full_name }}\" \"{{ input.pull_request.number }}\" \"$CHECKPOINT_JSON\"",
       "env": {
         "GH_TOKEN": "{{ credentials['github-app-oauth'].access_token }}",
         "CHECKPOINT_JSON": "{{ steps['save-checkpoint'].output }}"
