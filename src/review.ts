@@ -77,7 +77,9 @@ async function main() {
   // Output JSON with review metrics for workflow
   console.log(JSON.stringify({
     decision: review.decision,
-    comments_count: review.comments.length
+    comments_count: review.comments.length,
+    timestamp: new Date().toISOString(),
+    commit_sha: COMMIT_SHA
   }));
 }
 

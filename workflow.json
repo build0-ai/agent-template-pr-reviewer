@@ -33,12 +33,6 @@
       }
     },
     {
-      "id": "save-checkpoint",
-      "type": "command",
-      "name": "Save checkpoint",
-      "command": "cd /workspace/repo && COMMIT_SHA=$(git rev-parse HEAD) && echo '{\"timestamp\": \"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'\", \"commit_sha\": \"'$COMMIT_SHA'\"}' | jq -c ."
-    },
-    {
       "id": "poll-wait",
       "type": "sleep",
       "name": "Wait for updates",
@@ -48,10 +42,10 @@
       "id": "check-pr-and-activity",
       "type": "command",
       "name": "Check PR status and activity",
-      "command": "bash /workspace/agent/src/check-activity.sh \"{{ input.repository.full_name }}\" \"{{ input.pull_request.number }}\" \"$CHECKPOINT_JSON\"",
+      "command": "bash /workspace/agent/src/check-activity.sh \"{{ input.repository.full_name }}\" \"{{ input.pull_request.number }}\" \"$PREV_STATE\"",
       "env": {
         "GH_TOKEN": "{{ credentials['github-app-oauth'].access_token }}",
-        "CHECKPOINT_JSON": "{{ steps['save-checkpoint'].output }}"
+        "PREV_STATE": "{{ steps['check-pr-and-activity']?.output || steps['generate-review'].output }}"
       },
       "onError": "goto",
       "onErrorGoto": "is-review-completed"
@@ -75,7 +69,7 @@
         "HAS_NEW_COMMITS": "{{ JSON.parse(steps['check-pr-and-activity'].output).has_new_commits }}",
         "NEW_COMMENTS": "{{ JSON.stringify(JSON.parse(steps['check-pr-and-activity'].output).new_comments) }}",
         "PROMPT_TEMPLATE": "{{ params.prompt }}",
-        "COMMIT_SHA": "{{ JSON.parse(steps['check-pr-and-activity'].output).current_sha }}"
+        "COMMIT_SHA": "{{ JSON.parse(steps['check-pr-and-activity'].output).commit_sha }}"
       }
     },
     {
@@ -87,7 +81,7 @@
         "LAST_OUTPUT": "{{ steps['check-pr-and-activity'].output }}"
       },
       "onError": "goto",
-      "onErrorGoto": "save-checkpoint"
+      "onErrorGoto": "poll-wait"
     },
     {
       "id": "wrap-up",

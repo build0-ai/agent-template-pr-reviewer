@@ -22,25 +22,24 @@ A Build0 workflow template for AI-powered GitHub PR review. Fork this template t
 ### Workflow Steps
 
 1. **clone-and-fetch** - Clone repository, checkout PR branch, fetch files and diff
-2. **generate-review** - Run AI review and post to GitHub
-3. **save-checkpoint** - Save timestamp and commit SHA (loop target)
-4. **poll-wait** - Wait for updates
-5. **check-pr-and-activity** - Check if PR is open, detect new commits/comments
-6. **re-review** - Respond to comments, review new commits, update decision (conditional)
-7. **is-review-completed** - Loop back to save-checkpoint if PR still open
+2. **generate-review** - Run AI review and post to GitHub (outputs timestamp for polling)
+3. **poll-wait** - Wait for updates
+4. **check-pr-and-activity** - Check if PR is open, detect new commits/comments
+5. **re-review** - Respond to comments, review new commits, update decision (conditional)
+6. **is-review-completed** - Loop back to poll-wait if PR still open
 
 ### Flow Diagram
 
 ```
-clone-and-fetch → generate-review → save-checkpoint
-                                          ↓
-                    ┌──────────────── poll-wait
+clone-and-fetch → generate-review → poll-wait
+                                       ↓
+                    ┌───────── check-pr-and-activity
                     ↓                     ↓
-            is-review-completed ← re-review ← check-pr-and-activity
-                    │                                 │
-                    │ (if PR closed)       (if PR closed)
-                    ↓                                 ↓
-                  [end]                             [end]
+            is-review-completed ← re-review
+                    │
+                    │ (if PR closed)
+                    ↓
+                  [end]
 ```
 
 ## Key Files
@@ -210,17 +209,17 @@ Then update `src/review.ts` and `src/github.ts` to handle new fields.
 
 ## Polling Loop
 
-The workflow monitors the PR until closed using a checkpoint-based loop:
+The workflow monitors the PR until closed. Each step outputs a timestamp and commit SHA for the next iteration:
 
-```json
-{"timestamp": "2024-01-08T12:00:00Z", "commit_sha": "abc123"}
-```
+- `generate-review` outputs `{timestamp, commit_sha}` after initial review
+- `check-pr-and-activity` uses previous output to detect new activity, then outputs its own timestamp
+- This ensures no activity is missed between checks
 
 Key design decisions:
 
-- **Single checkpoint step**: `save-checkpoint` handles both initial save and loop updates
-- **Timestamp before polling**: Checkpoint saved BEFORE `poll-wait` to avoid gaps
-- **Bot comment filtering**: `check-pr-and-activity` filters out `[bot]` users and `🤖` emoji
+- **Self-referencing state**: `check-pr-and-activity` uses its own previous output (or `generate-review` output on first run)
+- **Both comment types**: Fetches review comments AND PR-level comments
+- **Bot comment filtering**: Filters out `[bot]` users and `🤖` emoji
 - **Session continuity**: `re-review` resumes the Claude session with `continue: true`, so prompts are brief and the AI has full context from the initial review
 
 ## Common Modifications
