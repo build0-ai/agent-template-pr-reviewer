@@ -116,6 +116,12 @@
           "value": "{{ JSON.parse(steps['re-review']?.output || '{\"replies_count\":0}').replies_count }}",
           "type": "gauge",
           "category": "engagement"
+        },
+        {
+          "name": "llm_cost_usd",
+          "value": "{{ (JSON.parse(steps['generate-review'].output).cost_usd || 0) + (JSON.parse(steps['re-review']?.output || '{\"cost_usd\":0}').cost_usd || 0) }}",
+          "type": "gauge",
+          "category": "cost"
         }
       ]
     }

@@ -18,6 +18,7 @@ async function main() {
   const schema = zodToJsonSchema(ReviewSchema, { $refStrategy: "none" });
 
   let review: Review | null = null;
+  let totalCostUsd = 0;
 
   console.error("Running Claude Agent SDK for code review...");
 
@@ -38,6 +39,9 @@ async function main() {
 
     // Capture the final structured output
     if (message.type === "result") {
+      // Extract cost metric
+      totalCostUsd = message.total_cost_usd;
+
       if (message.subtype === "success" && message.structured_output) {
         const parsed = ReviewSchema.safeParse(message.structured_output);
         if (parsed.success) {
@@ -59,6 +63,8 @@ async function main() {
     }
   }
 
+  console.error(`LLM cost: $${totalCostUsd.toFixed(4)}`);
+
   if (!review) {
     console.error("No review generated");
     process.exit(1);
@@ -79,7 +85,8 @@ async function main() {
     decision: review.decision,
     comments_count: review.comments.length,
     timestamp: new Date().toISOString(),
-    commit_sha: COMMIT_SHA
+    commit_sha: COMMIT_SHA,
+    cost_usd: totalCostUsd
   }));
 }
 

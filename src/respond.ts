@@ -20,6 +20,7 @@ interface PRComment {
   created_at: string;
 }
 
+
 async function main() {
   let newComments: PRComment[] = [];
   try {
@@ -37,7 +38,7 @@ async function main() {
 
   if (externalComments.length === 0 && !HAS_NEW_COMMITS) {
     console.error("No new activity to respond to");
-    console.log(JSON.stringify({ replies_count: 0 }));
+    console.log(JSON.stringify({ replies_count: 0, cost_usd: 0 }));
     return;
   }
 
@@ -52,6 +53,7 @@ async function main() {
   const schema = zodToJsonSchema(ResponseSchema, { $refStrategy: "none" });
 
   let response: Response | null = null;
+  let totalCostUsd = 0;
 
   console.error("Running Claude Agent SDK to formulate response...");
 
@@ -71,6 +73,9 @@ async function main() {
     console.error(JSON.stringify(message));
 
     if (message.type === "result") {
+      // Extract cost metric
+      totalCostUsd = message.total_cost_usd;
+
       if (message.subtype === "success" && message.structured_output) {
         const parsed = ResponseSchema.safeParse(message.structured_output);
         if (parsed.success) {
@@ -92,9 +97,11 @@ async function main() {
     }
   }
 
+  console.error(`LLM cost: $${totalCostUsd.toFixed(4)}`);
+
   if (!response) {
     console.error("No response generated");
-    console.log(JSON.stringify({ replies_count: 0 }));
+    console.log(JSON.stringify({ replies_count: 0, cost_usd: totalCostUsd }));
     return;
   }
 
@@ -141,7 +148,8 @@ async function main() {
   console.error("Response handling complete");
   console.log(JSON.stringify({
     replies_count: response.replies.length,
-    decision: response.decision || null
+    decision: response.decision || null,
+    cost_usd: totalCostUsd
   }));
 }
 
