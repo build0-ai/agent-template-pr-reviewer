@@ -1,5 +1,5 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { zodToJsonSchema } from "zod-to-json-schema";
+import { z } from "zod";
 import { ReviewSchema, type Review } from "./schemas.js";
 import { postReview } from "./github.js";
 
@@ -15,7 +15,7 @@ async function main() {
   );
 
   // Convert Zod schema to JSON Schema for structured output
-  const schema = zodToJsonSchema(ReviewSchema, { $refStrategy: "none" });
+  const schema = z.toJSONSchema(ReviewSchema, { target: "draft-07" });
 
   let review: Review | null = null;
   let totalCostUsd = 0;
@@ -49,7 +49,7 @@ async function main() {
           console.error(`Review generated: ${review.decision}`);
           console.error(`Comments: ${review.comments.length}`);
         } else {
-          console.error("Failed to parse review output:", parsed.error.errors);
+          console.error("Failed to parse review output:", parsed.error.issues);
         }
       } else if (message.subtype === "error_max_structured_output_retries") {
         console.error(

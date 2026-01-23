@@ -1,5 +1,5 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { zodToJsonSchema } from "zod-to-json-schema";
+import { z } from "zod";
 import { ResponseSchema, type Response } from "./schemas.js";
 import { postReplies, postComment, postReview } from "./github.js";
 
@@ -50,7 +50,7 @@ async function main() {
   console.error(`Prompt length: ${PROMPT?.length ?? "undefined"} chars`);
 
   // Convert Zod schema to JSON Schema
-  const schema = zodToJsonSchema(ResponseSchema, { $refStrategy: "none" });
+  const schema = z.toJSONSchema(ResponseSchema, { target: "draft-07" });
 
   let response: Response | null = null;
   let totalCostUsd = 0;
@@ -85,7 +85,7 @@ async function main() {
           console.error(`  General comment: ${response.general_comment ? "yes" : "no"}`);
           console.error(`  Decision: ${response.decision || "none"}`);
         } else {
-          console.error("Failed to parse response:", parsed.error.errors);
+          console.error("Failed to parse response:", parsed.error.issues);
         }
       } else if (message.subtype === "error_max_structured_output_retries") {
         console.error("Failed to generate valid structured output");

@@ -26,7 +26,7 @@ async function main() {
   // Validate with schema
   const parsed = ReviewSchema.safeParse(reviewData);
   if (!parsed.success) {
-    console.error("Invalid review format:", parsed.error.errors);
+    console.error("Invalid review format:", parsed.error.issues);
     process.exit(1);
   }
 
