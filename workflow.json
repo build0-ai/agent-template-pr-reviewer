@@ -6,7 +6,7 @@
       "id": "clone-and-fetch",
       "type": "command",
       "name": "Clone repo and fetch PR data",
-      "command": "rm -rf /workspace/repo && gh repo clone {{ input.repository.full_name }} /workspace/repo -- --depth=100 && cd /workspace/repo && gh pr checkout {{ input.pull_request.number }} --detach && FILES=$(gh pr view {{ input.pull_request.number }} --repo {{ input.repository.full_name }} --json files --jq '.files | map(\"- \\(.path) (+\\(.additions)/-\\(.deletions))\") | join(\"\\n\")') && DIFF=$(gh pr diff {{ input.pull_request.number }} --repo {{ input.repository.full_name }}) && if [ ${#DIFF} -gt 100000 ]; then DIFF=\"${DIFF:0:100000}\n... (truncated)\"; fi && jq -n --arg files \"$FILES\" --arg diff \"$DIFF\" '{files: $files, diff: $diff}'",
+      "command": "rm -rf /workspace/repo && gh repo clone {{ input.repository.full_name }} /workspace/repo -- --depth=100 >&2 && cd /workspace/repo && gh pr checkout {{ input.pull_request.number }} --detach >&2 && FILES=$(gh pr view {{ input.pull_request.number }} --repo {{ input.repository.full_name }} --json files --jq '.files | map(\"- \\(.path) (+\\(.additions)/-\\(.deletions))\") | join(\"\\n\")') && DIFF=$(gh pr diff {{ input.pull_request.number }} --repo {{ input.repository.full_name }}) && if [ ${#DIFF} -gt 100000 ]; then DIFF=\"${DIFF:0:100000}\n... (truncated)\"; fi && jq -n --arg files \"$FILES\" --arg diff \"$DIFF\" '{files: $files, diff: $diff}'",
       "env": {
         "GH_TOKEN": "{{ credentials['github-app-oauth'].access_token }}"
       },
