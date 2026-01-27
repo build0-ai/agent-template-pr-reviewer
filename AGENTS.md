@@ -13,7 +13,8 @@ A Build0 workflow template for AI-powered GitHub PR review. Fork this template t
 │   ├── schemas.ts         # Zod schemas for structured AI outputs
 │   ├── github.ts          # GitHub API helper functions
 │   ├── review.ts          # Review script (generates + posts review)
-│   └── respond.ts         # Response script (handles comments)
+│   ├── respond.ts         # Response script (handles comments)
+│   └── check-activity.sh  # Checks PR status and detects new activity
 └── AGENTS.md              # This file
 ```
 
@@ -27,6 +28,8 @@ A Build0 workflow template for AI-powered GitHub PR review. Fork this template t
 4. **check-pr-and-activity** - Check if PR is open, detect new commits/comments
 5. **re-review** - Respond to comments, review new commits, update decision (conditional)
 6. **is-review-completed** - Loop back to poll-wait if PR still open
+7. **compute-effectiveness** - Compute effectiveness metrics based on decision journey
+8. **wrap-up** - Emit analytics events
 
 ### Flow Diagram
 
@@ -39,7 +42,9 @@ clone-and-fetch → generate-review → poll-wait
                     │
                     │ (if PR closed)
                     ↓
-                  [end]
+          compute-effectiveness
+                    ↓
+                 wrap-up
 ```
 
 ## Key Files
@@ -221,6 +226,46 @@ Key design decisions:
 - **Both comment types**: Fetches review comments AND PR-level comments
 - **Bot comment filtering**: Filters out `[bot]` users and `🤖` emoji
 - **Session continuity**: `re-review` resumes the Claude session with `continue: true`, so prompts are brief and the AI has full context from the initial review
+
+## Effectiveness Tracking
+
+The workflow tracks whether the agent's reviews are effective using analytics events emitted at the end of each run.
+
+### Decision Journey
+
+The agent may change its decision during a review (e.g., REQUEST_CHANGES initially, then APPROVE after fixes). The effectiveness metrics consider both the initial and final decisions along with the PR outcome:
+
+| Initial | Final | Outcome | Category |
+|---------|-------|---------|----------|
+| APPROVE | APPROVE | MERGED | effective |
+| APPROVE | APPROVE | CLOSED | neutral |
+| REQUEST_CHANGES | APPROVE | MERGED | effective (feedback incorporated) |
+| REQUEST_CHANGES | APPROVE | CLOSED | neutral |
+| REQUEST_CHANGES | REQUEST_CHANGES | MERGED | overridden (agent ignored) |
+| REQUEST_CHANGES | REQUEST_CHANGES | CLOSED | effective (blocked bad PR) |
+| APPROVE | REQUEST_CHANGES | MERGED | overridden (late catch ignored) |
+| APPROVE | REQUEST_CHANGES | CLOSED | effective (late catch succeeded) |
+
+### Analytics Events
+
+| Event | Type | Category | Description |
+|-------|------|----------|-------------|
+| `pr_reviewed` | counter | outcomes | Total PRs reviewed |
+| `pr_merged` | counter | outcomes | PRs that were merged |
+| `pr_closed` | counter | outcomes | PRs that were closed without merge |
+| `review_effective` | counter | effectiveness | Agent was correct or added value |
+| `review_overridden` | counter | effectiveness | Agent's recommendation was ignored |
+| `review_comments` | gauge | engagement | Number of inline comments posted |
+| `replies_posted` | gauge | engagement | Number of comment replies |
+| `llm_cost_usd` | gauge | cost | Total LLM API cost |
+
+### Interpreting Metrics
+
+Compare these numbers to understand agent effectiveness:
+
+- **High `review_effective` vs `pr_reviewed`**: Agent is providing useful reviews
+- **High `review_overridden`**: Agent is being ignored, reviews may be too strict or unhelpful
+- **`review_effective` + `review_overridden` < `pr_reviewed`**: Remainder are neutral (abandoned PRs, COMMENT-only reviews)
 
 ## Common Modifications
 

@@ -84,6 +84,17 @@
       "onErrorGoto": "poll-wait"
     },
     {
+      "id": "compute-effectiveness",
+      "type": "command",
+      "name": "Compute effectiveness metrics",
+      "command": "node -e '\nconst initial = JSON.parse(process.env.INITIAL_OUTPUT).decision;\nconst reReviewOutput = process.env.RE_REVIEW_OUTPUT;\nconst final = reReviewOutput && reReviewOutput !== \"undefined\" && reReviewOutput.startsWith(\"{\")\n  ? JSON.parse(reReviewOutput).decision\n  : initial;\nconst state = process.env.FINAL_STATE.trim();\n\nlet category = \"neutral\";\nif (initial === \"COMMENT\" || final === \"COMMENT\") {\n  category = \"neutral\";\n} else {\n  const key = `${initial}_${final}_${state}`;\n  const categories = {\n    \"APPROVE_APPROVE_MERGED\": \"effective\",\n    \"APPROVE_APPROVE_CLOSED\": \"neutral\",\n    \"REQUEST_CHANGES_APPROVE_MERGED\": \"effective\",\n    \"REQUEST_CHANGES_APPROVE_CLOSED\": \"neutral\",\n    \"REQUEST_CHANGES_REQUEST_CHANGES_MERGED\": \"overridden\",\n    \"REQUEST_CHANGES_REQUEST_CHANGES_CLOSED\": \"effective\",\n    \"APPROVE_REQUEST_CHANGES_MERGED\": \"overridden\",\n    \"APPROVE_REQUEST_CHANGES_CLOSED\": \"effective\",\n  };\n  category = categories[key] || \"neutral\";\n}\n\nconsole.log(JSON.stringify({\n  initial_decision: initial,\n  final_decision: final,\n  final_state: state,\n  decision_changed: initial !== final,\n  is_effective: category === \"effective\" ? 1 : 0,\n  is_overridden: category === \"overridden\" ? 1 : 0\n}));\n'",
+      "env": {
+        "INITIAL_OUTPUT": "{{ steps['generate-review'].output }}",
+        "RE_REVIEW_OUTPUT": "{{ steps['re-review']?.output }}",
+        "FINAL_STATE": "{{ steps['check-pr-and-activity'].output }}"
+      }
+    },
+    {
       "id": "wrap-up",
       "type": "analytics",
       "name": "Wrap up",
@@ -94,16 +105,28 @@
           "category": "outcomes"
         },
         {
-          "name": "pr_approved",
-          "value": "{{ JSON.parse(steps['generate-review'].output).decision === 'APPROVE' ? 1 : 0 }}",
+          "name": "pr_merged",
+          "value": "{{ JSON.parse(steps['compute-effectiveness'].output).final_state === 'MERGED' ? 1 : 0 }}",
           "type": "counter",
           "category": "outcomes"
         },
         {
-          "name": "pr_changes_requested",
-          "value": "{{ JSON.parse(steps['generate-review'].output).decision === 'REQUEST_CHANGES' ? 1 : 0 }}",
+          "name": "pr_closed",
+          "value": "{{ JSON.parse(steps['compute-effectiveness'].output).final_state === 'CLOSED' ? 1 : 0 }}",
           "type": "counter",
           "category": "outcomes"
+        },
+        {
+          "name": "review_effective",
+          "value": "{{ JSON.parse(steps['compute-effectiveness'].output).is_effective }}",
+          "type": "counter",
+          "category": "effectiveness"
+        },
+        {
+          "name": "review_overridden",
+          "value": "{{ JSON.parse(steps['compute-effectiveness'].output).is_overridden }}",
+          "type": "counter",
+          "category": "effectiveness"
         },
         {
           "name": "review_comments",
