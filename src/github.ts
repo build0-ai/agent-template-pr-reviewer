@@ -1,4 +1,5 @@
 import type { Review, CommentReply } from "./schemas.js";
+import { normalizeNewlines } from "./utils.js";
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN!;
 const GITHUB_API = "https://api.github.com";
@@ -30,7 +31,7 @@ export async function postReview(
   // First, post the review summary without comments
   const reviewBody = {
     commit_id: commitSha,
-    body: review.summary,
+    body: normalizeNewlines(review.summary),
     event: review.decision,
     comments: [] as Array<{ path: string; line: number; body: string }>,
   };
@@ -40,7 +41,7 @@ export async function postReview(
     reviewBody.comments = review.comments.map((c) => ({
       path: c.path,
       line: c.line,
-      body: c.severity ? `**[${c.severity.toUpperCase()}]** ${c.body}` : c.body,
+      body: normalizeNewlines(c.severity ? `**[${c.severity.toUpperCase()}]** ${c.body}` : c.body),
     }));
 
     const batchResponse = await fetch(reviewUrl, {
@@ -81,9 +82,11 @@ export async function postReview(
       commit_id: commitSha,
       path: comment.path,
       line: comment.line,
-      body: comment.severity
-        ? `**[${comment.severity.toUpperCase()}]** ${comment.body}`
-        : comment.body,
+      body: normalizeNewlines(
+        comment.severity
+          ? `**[${comment.severity.toUpperCase()}]** ${comment.body}`
+          : comment.body
+      ),
     };
 
     const response = await fetch(commentUrl, {
@@ -131,7 +134,7 @@ export async function replyToComment(
   const response = await fetch(url, {
     method: "POST",
     headers: getHeaders(),
-    body: JSON.stringify({ body }),
+    body: JSON.stringify({ body: normalizeNewlines(body) }),
   });
 
   if (!response.ok) {
@@ -157,7 +160,7 @@ export async function postComment(
   const response = await fetch(url, {
     method: "POST",
     headers: getHeaders(),
-    body: JSON.stringify({ body }),
+    body: JSON.stringify({ body: normalizeNewlines(body) }),
   });
 
   if (!response.ok) {

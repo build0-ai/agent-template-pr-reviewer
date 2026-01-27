@@ -84,6 +84,17 @@
       "onErrorGoto": "poll-wait"
     },
     {
+      "id": "compute-effectiveness",
+      "type": "command",
+      "name": "Compute effectiveness metrics",
+      "command": "npx tsx /workspace/agent/src/compute-effectiveness.ts",
+      "env": {
+        "INITIAL_OUTPUT": "{{ steps['generate-review'].output }}",
+        "RE_REVIEW_OUTPUT": "{{ steps['re-review']?.output }}",
+        "FINAL_STATE": "{{ steps['check-pr-and-activity'].output }}"
+      }
+    },
+    {
       "id": "wrap-up",
       "type": "analytics",
       "name": "Wrap up",
@@ -94,16 +105,28 @@
           "category": "outcomes"
         },
         {
-          "name": "pr_approved",
-          "value": "{{ JSON.parse(steps['generate-review'].output).decision === 'APPROVE' ? 1 : 0 }}",
+          "name": "pr_merged",
+          "value": "{{ JSON.parse(steps['compute-effectiveness'].output).final_state === 'MERGED' ? 1 : 0 }}",
           "type": "counter",
           "category": "outcomes"
         },
         {
-          "name": "pr_changes_requested",
-          "value": "{{ JSON.parse(steps['generate-review'].output).decision === 'REQUEST_CHANGES' ? 1 : 0 }}",
+          "name": "pr_closed",
+          "value": "{{ JSON.parse(steps['compute-effectiveness'].output).final_state === 'CLOSED' ? 1 : 0 }}",
           "type": "counter",
           "category": "outcomes"
+        },
+        {
+          "name": "review_effective",
+          "value": "{{ JSON.parse(steps['compute-effectiveness'].output).is_effective }}",
+          "type": "counter",
+          "category": "effectiveness"
+        },
+        {
+          "name": "review_overridden",
+          "value": "{{ JSON.parse(steps['compute-effectiveness'].output).is_overridden }}",
+          "type": "counter",
+          "category": "effectiveness"
         },
         {
           "name": "review_comments",
