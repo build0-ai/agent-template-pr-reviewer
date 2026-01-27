@@ -10,11 +10,12 @@ A Build0 workflow template for AI-powered GitHub PR review. Fork this template t
 ├── package.json           # Node.js dependencies (pnpm)
 ├── tsconfig.json          # TypeScript configuration
 ├── src/
-│   ├── schemas.ts         # Zod schemas for structured AI outputs
-│   ├── github.ts          # GitHub API helper functions
-│   ├── review.ts          # Review script (generates + posts review)
-│   ├── respond.ts         # Response script (handles comments)
-│   └── check-activity.sh  # Checks PR status and detects new activity
+│   ├── schemas.ts              # Zod schemas for structured AI outputs
+│   ├── github.ts               # GitHub API helper functions
+│   ├── review.ts               # Review script (generates + posts review)
+│   ├── respond.ts              # Response script (handles comments)
+│   ├── check-activity.sh       # Checks PR status and detects new activity
+│   └── compute-effectiveness.ts # Computes effectiveness metrics for analytics
 └── AGENTS.md              # This file
 ```
 
