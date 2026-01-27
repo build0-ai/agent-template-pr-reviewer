@@ -21,6 +21,13 @@
       "params": {
         "prompt": "Review PR #{{ input.pull_request.number }}: {{ input.pull_request.title }}\n\nDescription: {{ input.pull_request.body }}\n\nChanged files:\n{{ JSON.parse(steps['clone-and-fetch'].output).files }}\n\nDiff:\n```diff\n{{ JSON.parse(steps['clone-and-fetch'].output).diff }}\n```\n\n## Rules\n1. **Summary**: 2-3 sentences max. State what the PR does and if it's ready to merge.\n2. **Comments**: Only flag issues that actually matter:\n   - Bugs, security issues, or broken logic → critical/warning\n   - Suggestions that meaningfully improve the code → suggestion\n   - Do NOT add nitpicks, style preferences, or observations that don't require action\n3. **Line numbers**: ONLY comment on lines that appear in the diff with + or - prefix. Comments on unchanged lines will fail to post.\n4. **Decision**: APPROVE if good, REQUEST_CHANGES if blocking issues exist, COMMENT otherwise.\n\nBe direct. Less is more."
       },
+      "params_schema": {
+        "prompt": {
+          "type": "string",
+          "description": "Instructions for the AI reviewer. Includes PR metadata, files, and diff via template expressions. Customize the rules section to adjust review behavior.",
+          "minLength": 1
+        }
+      },
       "env": {
         "IS_SANDBOX": "1",
         "GITHUB_TOKEN": "{{ credentials['github-app-oauth'].access_token }}",
@@ -58,6 +65,13 @@
       "command": "cd /workspace/repo && npx tsx /workspace/agent/src/respond.ts",
       "params": {
         "prompt": "New activity on the PR:\n\n### New Comments\n{{ JSON.stringify(JSON.parse(steps['check-pr-and-activity'].output).new_comments) }}\n\n### New Commits\n{{ JSON.parse(steps['check-pr-and-activity'].output).has_new_commits }}\n\nRespond to comments. If there are new commits, review the changes and update your decision (APPROVE/REQUEST_CHANGES/COMMENT) accordingly."
+      },
+      "params_schema": {
+        "prompt": {
+          "type": "string",
+          "description": "Instructions for handling new PR activity. Receives new comments and commit info via template expressions. This prompt continues the existing AI session with full context from the initial review.",
+          "minLength": 1
+        }
       },
       "env": {
         "IS_SANDBOX": "1",
